@@ -59,23 +59,7 @@ npm run dev               # local development
 npm run build             # production build
 npm run start             # start production server
 npm run lint              # eslint
-npm run test              # all unit/integration with coverage
-npm run test:unit         # unit tests
-npm run test:integration  # integration tests for route handlers
-npm run test:e2e          # playwright e2e
 ```
-
-## Testing strategy
-
-- Unit:
-  - `src/lib/api/client.test.ts`
-  - `src/lib/domain-parser.test.ts`
-- Integration:
-  - `tests/integration/api-auth-login.test.ts`
-  - `tests/integration/api-auth-forgot-password.test.ts`
-  - `tests/integration/api-domain-save-tab.test.ts`
-- E2E:
-  - `tests/e2e/auth-domain-flow.spec.ts`
 
 ## Observability
 

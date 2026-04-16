@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { getViewer } from "@/lib/api/auth";
 import { tunnelBypassHeaders } from "@/lib/api/client";
-import { clearWpAuthToken } from "@/lib/auth-storage";
 
 function UsFlagIcon({ className }: { className?: string }) {
   return (
@@ -74,7 +73,6 @@ export function SiteHeader() {
     } catch {
       /* vẫn xóa phía client */
     }
-    clearWpAuthToken();
     router.push("/logout");
     router.refresh();
   }, [router]);

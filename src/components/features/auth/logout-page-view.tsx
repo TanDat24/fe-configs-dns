@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 import { login } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
-import { saveWpAuthToken } from "@/lib/auth-storage";
 
 function postLoginPath(nextParam: string | null): string {
   if (!nextParam) return "/";
@@ -85,8 +84,7 @@ function LogoutPageViewInner() {
     setError(null);
     setLoading(true);
     try {
-      const { authToken } = await login({ username, password });
-      saveWpAuthToken(authToken);
+      await login({ username, password });
       router.push(postLoginPath(searchParams.get("next")));
       router.refresh();
     } catch (err) {
