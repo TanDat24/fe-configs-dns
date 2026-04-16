@@ -26,12 +26,43 @@ export class ApiError extends Error {
 
 export type ApiJsonInit = Omit<RequestInit, "body"> & {
   json?: unknown;
+  retry?: number;
 };
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(path: string, init: RequestInit, retry: number): Promise<Response> {
+  let attempt = 0;
+  let lastError: unknown;
+
+  while (attempt <= retry) {
+    try {
+      const res = await fetch(path, init);
+      if (res.status >= 500 && attempt < retry) {
+        await sleep(250 * Math.pow(2, attempt));
+        attempt += 1;
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastError = err;
+      if (attempt >= retry) {
+        throw err;
+      }
+      await sleep(250 * Math.pow(2, attempt));
+      attempt += 1;
+    }
+  }
+
+  throw lastError ?? new Error("network_error");
+}
+
 export async function apiJson<T>(path: string, init?: ApiJsonInit): Promise<T> {
-  const { json, headers, ...rest } = init ?? {};
+  const { json, headers, retry = 1, ...rest } = init ?? {};
   const hasJsonBody = json !== undefined;
-  const res = await fetch(path, {
+  const requestInit: RequestInit = {
     ...rest,
     headers: {
       ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
@@ -39,7 +70,20 @@ export async function apiJson<T>(path: string, init?: ApiJsonInit): Promise<T> {
       ...headers,
     },
     ...(hasJsonBody ? { body: JSON.stringify(json) } : {}),
-  });
+  };
+
+  let res: Response;
+  try {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      throw new ApiError("Mat ket noi Internet. Vui long kiem tra mang.", 0);
+    }
+    res = await fetchWithRetry(path, requestInit, retry);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      throw err;
+    }
+    throw new ApiError("Khong the ket noi may chu. He thong se tu thu lai.", 0, err);
+  }
 
   let parsed: unknown;
   try {

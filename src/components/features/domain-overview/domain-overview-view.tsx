@@ -1,153 +1,67 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
 import { DnsTabPanel } from "./dns-tab-panel";
 import { DomainSubnav, type DomainTabId } from "./domain-subnav";
 import { OverviewTongQuanPanel } from "./overview-tong-quan-panel";
 import { SecurityTabPanel } from "./security-tab-panel";
-import {
-  getDnsTemplates,
-  getDomainConfig,
-  getDomainsList,
-  getSecurityPackages,
-  saveDomainJsonTab,
-  saveDomainOverviewFields,
-  type DomainOption,
-} from "@/lib/api/domain";
-import { changePassword } from "@/lib/api/auth";
-import { ApiError } from "@/lib/api/client";
-import type {
-  DnsTemplate,
-  DomainConfig,
-  DomainJsonField,
-  DomainOverviewField,
-  SecurityService,
-  SecurityPackage,
-} from "@/lib/domain-types";
+import { useEffect, useState } from "react";
+import { useDomainOverview } from "@/hooks";
 
-const DEFAULT_DOMAIN_NAME = "raotin247.com";
+function PanelSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="space-y-3 px-6 py-6">
+      <div className="h-6 w-56 animate-pulse rounded bg-zinc-200" />
+      {Array.from({ length: rows }).map((_, idx) => (
+        <div key={idx} className="h-12 animate-pulse rounded-md bg-zinc-100" />
+      ))}
+    </div>
+  );
+}
 
-function toSlugFromDomain(domain: string): string {
-  return domain.trim().toLowerCase().replace(/\./g, "-");
+function OfflineHint() {
+  const [isOffline, setIsOffline] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setIsOffline(typeof navigator !== "undefined" && navigator.onLine === false);
+    sync();
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", sync);
+    return () => {
+      window.removeEventListener("online", sync);
+      window.removeEventListener("offline", sync);
+    };
+  }, []);
+
+  if (isOffline) {
+    return (
+      <div className="mx-6 my-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        Ban dang offline. Du lieu se khong the dong bo cho den khi co mang.
+      </div>
+    );
+  }
+  return null;
 }
 
 export function DomainOverviewView() {
   const [tab, setTab] = useState<DomainTabId>("overview");
-  const [domainData, setDomainData] = useState<DomainConfig | null>(null);
-  const [domains, setDomains] = useState<DomainOption[]>([]);
-  const [templates, setTemplates] = useState<DnsTemplate[]>([]);
-  const [securityPackages, setSecurityPackages] = useState<SecurityPackage[]>([]);
-  const [selectedSlug, setSelectedSlug] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [savingField, setSavingField] = useState<DomainJsonField | null>(null);
-  const [savingOverview, setSavingOverview] = useState(false);
-
-  const fallbackSlug = useMemo(() => toSlugFromDomain(DEFAULT_DOMAIN_NAME), []);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [domainList, tpl, secPackages] = await Promise.all([
-          getDomainsList(),
-          getDnsTemplates(),
-          getSecurityPackages(),
-        ]);
-        if (cancelled) return;
-        setDomains(domainList);
-        setTemplates(tpl);
-        setSecurityPackages(secPackages);
-        const preferred = domainList.find((d) => d.slug === fallbackSlug) ?? domainList[0];
-        setSelectedSlug(preferred?.slug ?? fallbackSlug);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof ApiError ? err.message : "Không tải được danh sách tên miền.");
-          setLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [fallbackSlug]);
-
-  useEffect(() => {
-    if (!selectedSlug) return;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      setDomainData(null);
-      try {
-        const data = await getDomainConfig(selectedSlug);
-        if (!cancelled) setDomainData(data);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof ApiError ? err.message : "Không tải được dữ liệu tên miền.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedSlug]);
-
-  async function saveTab(field: DomainJsonField, payload: unknown) {
-    if (!domainData) throw new Error("Thiếu dữ liệu tên miền.");
-    setSavingField(field);
-    try {
-      await saveDomainJsonTab({ domainId: domainData.id, field, payload });
-      setDomainData((prev) => (prev ? { ...prev, [field]: payload } : prev));
-    } finally {
-      setSavingField(null);
-    }
-  }
-
-  async function saveOverview(fields: Partial<Record<DomainOverviewField, string>>) {
-    if (!domainData) return;
-    setSavingOverview(true);
-    try {
-      await saveDomainOverviewFields({ domainId: domainData.id, fields });
-      setDomainData((prev) => (prev ? { ...prev, ...fields } : prev));
-    } finally {
-      setSavingOverview(false);
-    }
-  }
-
-  async function saveSecurityServices(services: SecurityService[]) {
-    if (!domainData) throw new Error("Thiếu dữ liệu tên miền.");
-    setSavingField("security_services_json");
-    try {
-      await saveDomainJsonTab({ domainId: domainData.id, field: "security_services_json", payload: services });
-      setDomainData((prev) => prev ? { ...prev, security_services_json: services } : prev);
-    } finally {
-      setSavingField(null);
-    }
-  }
-
-  async function saveTwoFactor(enabled: boolean) {
-    if (!domainData) throw new Error("Thiếu dữ liệu tên miền.");
-    setSavingField("two_factor_enabled");
-    try {
-      await saveDomainJsonTab({ domainId: domainData.id, field: "two_factor_enabled", payload: enabled ? "1" : "0" });
-      setDomainData((prev) => prev ? { ...prev, two_factor_enabled: enabled ? "1" : "0" } : prev);
-    } finally {
-      setSavingField(null);
-    }
-  }
-
-  async function handleChangePassword(input: {
-    oldPassword: string;
-    newPassword: string;
-    confirmPassword: string;
-  }) {
-    await changePassword(input);
-  }
+  const {
+    domainData,
+    domains,
+    templates,
+    securityPackages,
+    selectedSlug,
+    setSelectedSlug,
+    loading,
+    error,
+    savingField,
+    savingOverview,
+    saveTab,
+    saveOverview,
+    saveSecurityServices,
+    saveTwoFactor,
+    handleChangePassword,
+    defaultDomainName,
+  } = useDomainOverview();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col font-sans">
@@ -166,20 +80,22 @@ export function DomainOverviewView() {
 
       <div className="overflow-hidden rounded-lg bg-white">
         <DomainSubnav
-          domainName={domainData?.domain || DEFAULT_DOMAIN_NAME}
+          domainName={domainData?.domain || defaultDomainName}
           activeTab={tab}
           onTabChange={setTab}
         />
 
-        {loading ? (
-          <div className="px-6 py-8 text-sm text-zinc-500">Đang tải dữ liệu tên miền...</div>
-        ) : null}
+        <OfflineHint />
 
         {error ? (
           <div className="mx-6 my-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}
           </div>
         ) : null}
+
+        {loading && tab === "overview" ? <PanelSkeleton rows={7} /> : null}
+        {loading && tab === "dns" ? <PanelSkeleton rows={9} /> : null}
+        {loading && tab === "security" ? <PanelSkeleton rows={6} /> : null}
 
         {tab === "overview" && domainData ? (
           <div className="bg-white">

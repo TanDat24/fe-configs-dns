@@ -1,0 +1,44 @@
+export type ApiSuccess<T> = T;
+
+export type ApiErrorBody = {
+  message: string;
+  requestId?: string;
+};
+
+export type LoginRequestDto = {
+  username: string;
+  password: string;
+};
+
+export type LoginResponseDto = {
+  authToken: string;
+};
+
+export type ForgotPasswordRequestDto = {
+  email: string;
+};
+
+export type ForgotPasswordResponseDto = {
+  message: string;
+  clientMutationId?: string;
+};
+
+export type ChangePasswordRequestDto = {
+  oldPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+};
+
+export type ChangePasswordResponseDto = {
+  message: string;
+};
+
+export type SaveDomainTabRequestDto = {
+  domainId: number;
+  field: string;
+  payload: unknown;
+};
+
+export type SaveDomainTabResponseDto = {
+  message: string;
+};

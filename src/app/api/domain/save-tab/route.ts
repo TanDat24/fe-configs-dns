@@ -2,6 +2,15 @@
 import { NextResponse } from "next/server";
 import { WP_AUTH_COOKIE_NAME } from "@/lib/auth-cookie";
 import type { DomainJsonField, DomainOverviewField } from "@/lib/domain-types";
+import type { SaveDomainTabRequestDto, SaveDomainTabResponseDto } from "@/lib/contracts/api";
+import {
+  createRequestId,
+  errorResponse,
+  logApiError,
+  sanitizeApiMessage,
+  verifySameOriginCsrf,
+} from "@/lib/server/request-security";
+import { parseBodyOrThrow, saveDomainTabSchema } from "@/lib/server/validators";
 import { wpSaveDomainJsonTab } from "@/lib/server/wp-domain";
 
 const ALLOWED_FIELDS: Array<DomainJsonField | DomainOverviewField> = [
@@ -30,47 +39,39 @@ const ALLOWED_FIELDS: Array<DomainJsonField | DomainOverviewField> = [
 ];
 
 export async function POST(request: Request) {
+  const requestId = createRequestId();
   const endpoint = process.env.WP_GRAPHQL_URL;
   if (!endpoint) {
-    return NextResponse.json({ message: "Thieu WP_GRAPHQL_URL." }, { status: 500 });
+    return errorResponse("Cau hinh he thong chua day du.", 500, requestId);
+  }
+
+  if (!verifySameOriginCsrf(request)) {
+    return errorResponse("Yeu cau khong hop le.", 403, requestId);
   }
 
   const cookieStore = await cookies();
   const token = cookieStore.get(WP_AUTH_COOKIE_NAME)?.value;
   if (!token) {
-    return NextResponse.json({ message: "Chua dang nhap." }, { status: 401 });
+    return errorResponse("Ban can dang nhap de tiep tuc.", 401, requestId);
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ message: "Du lieu khong hop le." }, { status: 400 });
+    return errorResponse("Du lieu khong hop le.", 400, requestId);
   }
 
-  const domainId =
-    typeof body === "object" &&
-    body !== null &&
-    "domainId" in body &&
-    typeof (body as { domainId: unknown }).domainId === "number"
-      ? (body as { domainId: number }).domainId
-      : 0;
+  let payloadDto: SaveDomainTabRequestDto;
+  try {
+    payloadDto = parseBodyOrThrow(saveDomainTabSchema, body);
+  } catch (err) {
+    return errorResponse(err instanceof Error ? err.message : "Tham so khong hop le.", 400, requestId);
+  }
 
-  const field =
-    typeof body === "object" &&
-    body !== null &&
-    "field" in body &&
-    typeof (body as { field: unknown }).field === "string"
-      ? ((body as { field: string }).field as DomainJsonField | DomainOverviewField)
-      : null;
-
-  const payload =
-    typeof body === "object" && body !== null && "payload" in body
-      ? (body as { payload: unknown }).payload
-      : null;
-
-  if (!domainId || !field || !ALLOWED_FIELDS.includes(field)) {
-    return NextResponse.json({ message: "Tham so khong hop le." }, { status: 400 });
+  const field = payloadDto.field as DomainJsonField | DomainOverviewField;
+  if (!ALLOWED_FIELDS.includes(field)) {
+    return errorResponse("Tham so khong hop le.", 400, requestId);
   }
 
   const JSON_FIELDS: string[] = [
@@ -83,22 +84,26 @@ export async function POST(request: Request) {
 
   let payloadJson: string;
   if (field === "two_factor_enabled") {
-    payloadJson = payload === "1" || payload === 1 || payload === true ? "1" : "0";
+    payloadJson =
+      payloadDto.payload === "1" || payloadDto.payload === 1 || payloadDto.payload === true ? "1" : "0";
   } else if (JSON_FIELDS.includes(field)) {
-    payloadJson = JSON.stringify(payload ?? []);
+    payloadJson = JSON.stringify(payloadDto.payload ?? []);
   } else {
-    payloadJson = typeof payload === "string" ? payload : String(payload ?? "");
+    payloadJson =
+      typeof payloadDto.payload === "string" ? payloadDto.payload : String(payloadDto.payload ?? "");
   }
 
   const result = await wpSaveDomainJsonTab(endpoint, token, {
-    domainId,
+    domainId: payloadDto.domainId,
     field,
     payloadJson,
   });
 
   if (!result.ok) {
-    return NextResponse.json({ message: result.message }, { status: result.status });
+    logApiError(requestId, "/api/domain/save-tab", result.message, { status: result.status, field });
+    return errorResponse(sanitizeApiMessage(result.status, "Khong the luu du lieu."), result.status, requestId);
   }
 
-  return NextResponse.json({ message: result.message });
+  const responseBody: SaveDomainTabResponseDto = { message: result.message };
+  return NextResponse.json(responseBody);
 }

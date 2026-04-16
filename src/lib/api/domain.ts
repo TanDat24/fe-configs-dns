@@ -1,4 +1,5 @@
 ﻿import { apiJson } from "./client";
+import type { SaveDomainTabRequestDto, SaveDomainTabResponseDto } from "@/lib/contracts/api";
 import type {
   DnsTemplate,
   DomainConfig,
@@ -39,12 +40,10 @@ export async function getSecurityPackages(): Promise<SecurityPackage[]> {
   return data.items;
 }
 
-export async function saveDomainJsonTab(input: {
-  domainId: number;
+export async function saveDomainJsonTab(input: SaveDomainTabRequestDto & {
   field: DomainJsonField | DomainOverviewField;
-  payload: unknown;
-}): Promise<{ message: string }> {
-  return apiJson<{ message: string }>("/api/domain/save-tab", {
+}): Promise<SaveDomainTabResponseDto> {
+  return apiJson<SaveDomainTabResponseDto>("/api/domain/save-tab", {
     method: "POST",
     json: input,
   });

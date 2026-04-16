@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FE Config DNS
 
-## Getting Started
+Ung dung frontend quan ly DNS cho he thong Config DNS, xay dung bang Next.js App Router.
 
-First, run the development server:
+## Chuc nang chinh
+
+- Dang nhap/Dang xuat voi WordPress GraphQL JWT.
+- Quan ly thong tin tong quan ten mien.
+- Quan ly DNS records, Name Server, Child DNS, Email Forwarding.
+- Quan ly goi bao mat, 2FA va doi mat khau.
+- Flow quen mat khau.
+
+## Kien truc du an
+
+- `src/app`: App Router pages + route handlers (`/api/*`).
+- `src/components`: UI va feature components.
+- `src/hooks`: custom hooks cho state/flow.
+- `src/services`: service layer nghiep vu.
+- `src/lib/api`: client-side API wrapper.
+- `src/lib/server`: server-side connectors/security/validation/observability.
+- `src/lib/contracts`: DTO contracts dung chung giua client va routes.
+
+## Bien moi truong
+
+Tao file `.env.local`:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+WP_GRAPHQL_URL=https://configsdns.com/graphql/
+INTERNAL_API_ALLOWED_ORIGINS=https://your-fe-domain.com
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Tuy chon observability:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+# Datadog
+DD_API_KEY=
+DD_SITE=datadoghq.com
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Better Stack Logtail
+LOGTAIL_SOURCE_TOKEN=
 
-## Learn More
+# Sentry
+SENTRY_DSN=
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Chay local
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Mo `http://localhost:3000`.
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run dev               # local development
+npm run build             # production build
+npm run start             # start production server
+npm run lint              # eslint
+npm run test              # all unit/integration with coverage
+npm run test:unit         # unit tests
+npm run test:integration  # integration tests for route handlers
+npm run test:e2e          # playwright e2e
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Testing strategy
+
+- Unit:
+  - `src/lib/api/client.test.ts`
+  - `src/lib/domain-parser.test.ts`
+- Integration:
+  - `tests/integration/api-auth-login.test.ts`
+  - `tests/integration/api-auth-forgot-password.test.ts`
+  - `tests/integration/api-domain-save-tab.test.ts`
+- E2E:
+  - `tests/e2e/auth-domain-flow.spec.ts`
+
+## Observability
+
+- API routes da co `requestId` va structured error logs.
+- Co the day log/exception den Datadog, Logtail hoac Sentry qua env.
+- Module: `src/lib/server/observability.ts`.
+
+## Tai lieu them
+
+- Tong quan nghiep vu va roadmap: `FE_SYSTEM_OVERVIEW.md`.

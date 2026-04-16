@@ -1,18 +1,44 @@
 import { NextResponse } from "next/server";
 import { WP_AUTH_COOKIE_NAME, wpAuthCookieOptions } from "@/lib/auth-cookie";
+import type { LoginRequestDto, LoginResponseDto } from "@/lib/contracts/api";
+import {
+  createRequestId,
+  enforceRateLimit,
+  errorResponse,
+  logApiError,
+  sanitizeApiMessage,
+  verifySameOriginCsrf,
+} from "@/lib/server/request-security";
+import { parseBodyOrThrow, loginSchema } from "@/lib/server/validators";
 import { wpGraphqlLogin } from "@/lib/server/wp-login";
 
 const AUTH_COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 7;
 
 export async function POST(request: Request) {
+  const requestId = createRequestId();
   const endpoint = process.env.WP_GRAPHQL_URL;
   if (!endpoint) {
+    return errorResponse("Cau hinh he thong chua day du.", 500, requestId);
+  }
+
+  if (!verifySameOriginCsrf(request)) {
+    return errorResponse("Yeu cau khong hop le.", 403, requestId);
+  }
+
+  const limit = enforceRateLimit({
+    request,
+    namespace: "auth_login",
+    max: 10,
+    windowMs: 60_000,
+  });
+  if (!limit.ok) {
     return NextResponse.json(
       {
-        message:
-          "Thiếu biến môi trường WP_GRAPHQL_URL (URL endpoint GraphQL của WordPress).",
+        message: "Ban thao tac qua nhanh. Vui long thu lai sau.",
+        requestId,
+        retryAfterSec: limit.retryAfterSec,
       },
-      { status: 500 },
+      { status: 429 },
     );
   }
 
@@ -20,37 +46,24 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ message: "Dữ liệu không hợp lệ." }, { status: 400 });
+    return errorResponse("Du lieu khong hop le.", 400, requestId);
   }
 
-  const username =
-    typeof body === "object" &&
-    body !== null &&
-    "username" in body &&
-    typeof (body as { username: unknown }).username === "string"
-      ? (body as { username: string }).username.trim()
-      : "";
-  const password =
-    typeof body === "object" &&
-    body !== null &&
-    "password" in body &&
-    typeof (body as { password: unknown }).password === "string"
-      ? (body as { password: string }).password
-      : "";
-
-  if (!username || !password) {
-    return NextResponse.json(
-      { message: "Vui lòng nhập tên người dùng và mật khẩu." },
-      { status: 400 },
-    );
+  let payload: LoginRequestDto;
+  try {
+    payload = parseBodyOrThrow(loginSchema, body);
+  } catch (err) {
+    return errorResponse(err instanceof Error ? err.message : "Du lieu khong hop le.", 400, requestId);
   }
 
-  const result = await wpGraphqlLogin(endpoint, username, password);
+  const result = await wpGraphqlLogin(endpoint, payload.username, payload.password);
   if (!result.ok) {
-    return NextResponse.json({ message: result.message }, { status: result.status });
+    logApiError(requestId, "/api/auth/login", result.message, { status: result.status });
+    return errorResponse(sanitizeApiMessage(result.status, "Dang nhap that bai."), result.status, requestId);
   }
 
-  const res = NextResponse.json({ authToken: result.authToken });
+  const responseBody: LoginResponseDto = { authToken: result.authToken };
+  const res = NextResponse.json(responseBody);
   res.cookies.set(
     WP_AUTH_COOKIE_NAME,
     result.authToken,

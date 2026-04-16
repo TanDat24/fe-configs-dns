@@ -1,16 +1,19 @@
 import { apiJson, ApiError } from "./client";
+import type {
+  ChangePasswordRequestDto,
+  ChangePasswordResponseDto,
+  ForgotPasswordRequestDto,
+  ForgotPasswordResponseDto,
+  LoginRequestDto,
+  LoginResponseDto,
+} from "@/lib/contracts/api";
 
-export type LoginInput = {
-  username: string;
-  password: string;
-};
+export type LoginInput = LoginRequestDto;
 
-export type LoginResult = {
-  authToken: string;
-};
+export type LoginResult = LoginResponseDto;
 
 export async function login(input: LoginInput): Promise<LoginResult> {
-  const data = await apiJson<{ authToken?: string }>("/api/auth/login", {
+  const data = await apiJson<LoginResponseDto>("/api/auth/login", {
     method: "POST",
     json: {
       username: input.username.trim(),
@@ -25,14 +28,8 @@ export async function login(input: LoginInput): Promise<LoginResult> {
   return { authToken: data.authToken };
 }
 
-export type ForgotPasswordInput = {
-  email: string;
-};
-
-export type ForgotPasswordResult = {
-  message: string;
-  clientMutationId?: string;
-};
+export type ForgotPasswordInput = ForgotPasswordRequestDto;
+export type ForgotPasswordResult = ForgotPasswordResponseDto;
 
 export async function forgotPassword(
   input: ForgotPasswordInput,
@@ -59,14 +56,10 @@ export async function getViewer(): Promise<ViewerResponse> {
   return apiJson<ViewerResponse>("/api/auth/viewer", { method: "GET" });
 }
 
-export type ChangePasswordInput = {
-  oldPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-};
+export type ChangePasswordInput = ChangePasswordRequestDto;
 
-export async function changePassword(input: ChangePasswordInput): Promise<{ message: string }> {
-  return apiJson<{ message: string }>("/api/auth/change-password", {
+export async function changePassword(input: ChangePasswordInput): Promise<ChangePasswordResponseDto> {
+  return apiJson<ChangePasswordResponseDto>("/api/auth/change-password", {
     method: "POST",
     json: input,
   });
