@@ -1,0 +1,10 @@
+host,type,value,ttl,priority
+"@","A","103.57.221.79","300",""
+"www","CNAME","@","300",""
+"mail","A","103.57.221.80","300",""
+"@","MX","mail.example.com","300","10"
+"@","TXT","v=spf1 include:_spf.google.com ~all","300",""
+"_dmarc","TXT","v=DMARC1; p=none; rua=mailto:admin@example.com","300",""
+"ns1","NS","ns1.pavietnam.vn","86400",""
+"_sip._tcp","SRV","sipserver.example.com","300","10"
+"@","CAA","0 issue ""letsencrypt.org""","300",""
