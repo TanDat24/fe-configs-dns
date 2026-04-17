@@ -6,6 +6,8 @@ import type {
   ForgotPasswordResponseDto,
   LoginRequestDto,
   LoginResponseDto,
+  RegisterRequestDto,
+  RegisterResponseDto,
 } from "@/lib/contracts/api";
 
 export type LoginInput = LoginRequestDto;
@@ -26,6 +28,21 @@ export async function login(input: LoginInput): Promise<LoginResult> {
   }
 
   return { authToken: data.authToken };
+}
+
+export type RegisterInput = RegisterRequestDto;
+export type RegisterResult = RegisterResponseDto;
+
+export async function register(input: RegisterInput): Promise<RegisterResult> {
+  return apiJson<RegisterResponseDto>("/api/auth/register", {
+    method: "POST",
+    json: {
+      username: input.username.trim(),
+      email: input.email.trim(),
+      password: input.password,
+      confirmPassword: input.confirmPassword,
+    },
+  });
 }
 
 export type ForgotPasswordInput = ForgotPasswordRequestDto;

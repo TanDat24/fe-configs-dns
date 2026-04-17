@@ -35,6 +35,18 @@ export const forgotPasswordSchema = z.object({
   email: z.string().trim().min(1, "Vui long nhap email hoac ten nguoi dung."),
 });
 
+export const registerSchema = z
+  .object({
+    username: z.string().trim().min(3, "Ten nguoi dung toi thieu 3 ky tu."),
+    email: z.string().trim().email("Email khong hop le."),
+    password: z.string().min(8, "Mat khau toi thieu 8 ky tu."),
+    confirmPassword: z.string().min(1, "Vui long xac nhan mat khau."),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: "Mat khau xac nhan khong khop.",
+    path: ["confirmPassword"],
+  });
+
 export const changePasswordSchema = z.object({
   oldPassword: z.string().min(1, "Vui long nhap mat khau cu."),
   newPassword: z.string().min(1, "Vui long nhap mat khau moi."),

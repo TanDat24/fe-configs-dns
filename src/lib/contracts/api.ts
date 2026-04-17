@@ -33,6 +33,18 @@ export type ChangePasswordResponseDto = {
   message: string;
 };
 
+export type RegisterRequestDto = {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
+
+export type RegisterResponseDto = {
+  message: string;
+  authToken?: string;
+};
+
 export type SaveDomainTabRequestDto = {
   domainId: number;
   field: string;
