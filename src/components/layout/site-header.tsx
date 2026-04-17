@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { getViewer } from "@/lib/api/auth";
-import { tunnelBypassHeaders } from "@/lib/api/client";
+import { ApiError, tunnelBypassHeaders } from "@/lib/api/client";
 
 function UsFlagIcon({ className }: { className?: string }) {
   return (
@@ -54,7 +54,12 @@ export function SiteHeader() {
         if (!cancelled) {
           setLabel(displayName(viewer));
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          const nextPath = `${window.location.pathname}${window.location.search}`;
+          window.location.replace(`/logout?next=${encodeURIComponent(nextPath)}`);
+          return;
+        }
         if (!cancelled) setLabel("Bạn");
       }
     })();

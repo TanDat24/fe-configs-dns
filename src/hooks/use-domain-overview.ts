@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { getViewer } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
 import type {
   DnsTemplate,
@@ -27,6 +28,11 @@ function toSlugFromDomain(domain: string): string {
   return domain.trim().toLowerCase().replace(/\./g, "-");
 }
 
+function redirectToLogout() {
+  const nextPath = `${window.location.pathname}${window.location.search}`;
+  window.location.replace(`/logout?next=${encodeURIComponent(nextPath)}`);
+}
+
 export function useDomainOverview() {
   const [domainData, setDomainData] = useState<DomainConfig | null>(null);
   const [domains, setDomains] = useState<DomainOption[]>([]);
@@ -46,6 +52,7 @@ export function useDomainOverview() {
       setLoading(true);
       setError(null);
       try {
+        await getViewer();
         const { domains: domainList, templates: tpl, securityPackages: secPackages } =
           await loadDomainBootData();
         if (cancelled) return;
@@ -56,6 +63,10 @@ export function useDomainOverview() {
         setSelectedSlug(preferred?.slug ?? fallbackSlug);
       } catch (err) {
         if (!cancelled) {
+          if (err instanceof ApiError && err.status === 401) {
+            redirectToLogout();
+            return;
+          }
           setError(err instanceof ApiError ? err.message : "Khong tai duoc danh sach ten mien.");
           setLoading(false);
         }
@@ -78,6 +89,10 @@ export function useDomainOverview() {
         if (!cancelled) setDomainData(data);
       } catch (err) {
         if (!cancelled) {
+          if (err instanceof ApiError && err.status === 401) {
+            redirectToLogout();
+            return;
+          }
           setError(err instanceof ApiError ? err.message : "Khong tai duoc du lieu ten mien.");
         }
       } finally {
