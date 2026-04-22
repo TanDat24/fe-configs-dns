@@ -31,7 +31,10 @@ async function exchangeCodeForAccessToken(
 ): Promise<string | null> {
   const appId = process.env.ZALO_APP_ID;
   const secretKey = process.env.ZALO_APP_SECRET;
-  if (!appId || !secretKey) return null;
+  if (!appId || !secretKey) {
+    console.error("[zalo callback] missing ZALO_APP_ID or ZALO_APP_SECRET");
+    return null;
+  }
 
   try {
     const res = await fetch("https://oauth.zaloapp.com/v4/access_token", {
@@ -48,10 +51,25 @@ async function exchangeCodeForAccessToken(
       }).toString(),
       cache: "no-store",
     });
-    if (!res.ok) return null;
-    const data = (await res.json()) as ZaloTokenResponse;
-    return typeof data.access_token === "string" ? data.access_token : null;
-  } catch {
+    const raw = await res.text();
+    if (!res.ok) {
+      console.error("[zalo callback] access_token HTTP", res.status, raw);
+      return null;
+    }
+    let data: ZaloTokenResponse;
+    try {
+      data = JSON.parse(raw) as ZaloTokenResponse;
+    } catch {
+      console.error("[zalo callback] access_token non-JSON:", raw);
+      return null;
+    }
+    if (typeof data.access_token !== "string" || data.access_token.length === 0) {
+      console.error("[zalo callback] access_token missing, body:", raw);
+      return null;
+    }
+    return data.access_token;
+  } catch (err) {
+    console.error("[zalo callback] access_token exception:", err);
     return null;
   }
 }
@@ -66,15 +84,29 @@ async function fetchZaloUser(
       headers: { access_token: accessToken },
       cache: "no-store",
     });
-    if (!res.ok) return null;
-    const data = (await res.json()) as ZaloUserResponse;
-    if (!data || typeof data.id !== "string") return null;
+    const raw = await res.text();
+    if (!res.ok) {
+      console.error("[zalo callback] graph me HTTP", res.status, raw);
+      return null;
+    }
+    let data: ZaloUserResponse;
+    try {
+      data = JSON.parse(raw) as ZaloUserResponse;
+    } catch {
+      console.error("[zalo callback] graph me non-JSON:", raw);
+      return null;
+    }
+    if (!data || typeof data.id !== "string" || data.id.length === 0) {
+      console.error("[zalo callback] graph me missing id, body:", raw);
+      return null;
+    }
     return {
       id: data.id,
       name: typeof data.name === "string" ? data.name : undefined,
       picture: data.picture?.data?.url,
     };
-  } catch {
+  } catch (err) {
+    console.error("[zalo callback] graph me exception:", err);
     return null;
   }
 }
@@ -98,35 +130,54 @@ export async function GET(request: Request) {
   const searchParams = new URL(request.url).searchParams;
   const code = searchParams.get("code");
   const state = searchParams.get("state");
+  const errorParam = searchParams.get("error") ?? searchParams.get("error_code");
+  const errorDesc = searchParams.get("error_description") ?? searchParams.get("error_reason");
   const nextPath = parseNextFromState(state);
 
   const logoutWithError = (err: string) =>
     NextResponse.redirect(`${origin}/logout?error=${err}`);
 
-  if (!code) return logoutWithError("zalo_cancelled");
+  if (errorParam) {
+    console.error("[zalo callback] zalo returned error:", errorParam, errorDesc);
+    return logoutWithError(`zalo_${errorParam}`);
+  }
+
+  if (!code) {
+    console.error("[zalo callback] missing code in callback");
+    return logoutWithError("zalo_cancelled");
+  }
 
   const endpoint = process.env.WP_GRAPHQL_URL;
-  if (!endpoint) return logoutWithError("config");
+  if (!endpoint) {
+    console.error("[zalo callback] missing WP_GRAPHQL_URL");
+    return logoutWithError("config");
+  }
 
   const cookieStore = await cookies();
   const verifier = cookieStore.get(ZALO_PKCE_COOKIE)?.value;
   // Luon clear verifier cookie sau khi dung (one-shot)
   cookieStore.delete(ZALO_PKCE_COOKIE);
 
-  if (!verifier) return logoutWithError("zalo_token");
+  if (!verifier) {
+    console.error("[zalo callback] missing PKCE verifier cookie");
+    return logoutWithError("zalo_pkce");
+  }
 
   const accessToken = await exchangeCodeForAccessToken(code, verifier);
   if (!accessToken) return logoutWithError("zalo_token");
 
   const profile = await fetchZaloUser(accessToken);
-  if (!profile) return logoutWithError("zalo_token");
+  if (!profile) return logoutWithError("zalo_profile");
 
   const result = await wpLoginWithZalo(endpoint, {
     zaloId: profile.id,
     name: profile.name,
     picture: profile.picture,
   });
-  if (!result.ok) return logoutWithError("zalo_login");
+  if (!result.ok) {
+    console.error("[zalo callback] wpLoginWithZalo failed:", result);
+    return logoutWithError("zalo_login");
+  }
 
   const fakeReq = { headers: { get: (h: string) => request.headers.get(h) } } as unknown as Request;
   cookieStore.set(
