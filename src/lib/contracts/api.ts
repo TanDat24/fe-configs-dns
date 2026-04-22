@@ -14,6 +14,17 @@ export type LoginResponseDto = {
   authToken: string;
 };
 
+export type LoginDomainRequestDto = {
+  domain: string;
+  password: string;
+};
+
+export type LoginDomainResponseDto = {
+  authToken: string;
+  username?: string;
+  domain?: string;
+};
+
 export type ForgotPasswordRequestDto = {
   email: string;
 };

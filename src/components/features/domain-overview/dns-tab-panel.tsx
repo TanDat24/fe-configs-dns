@@ -238,7 +238,15 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                       <td className="border-b border-zinc-200 px-2 py-2"><select className={inputCellClass} value={row.type} onChange={(e) => {
                         const srcIndex = records.indexOf(row); if (srcIndex < 0) return;
                         const next = [...records]; next[srcIndex] = { ...next[srcIndex], type: e.target.value }; setRecords(next);
-                      }}><option value="A">A</option><option value="AAAA">AAAA</option><option value="CNAME">CNAME</option><option value="MX">MX</option><option value="TXT">TXT</option><option value="NS">NS</option><option value="SRV">SRV</option><option value="CAA">CAA</option></select></td>
+                      }}><option value="A">A (IP Address)</option><option value="CNAMME">CNAME (Alias)
+                      </option><option value="MX">MX (Mail Exchange)</option>
+                      <option value="URL Redirect">URL Redirect</option>
+                      <option value="Domain Redirect">Domain Redirect</option>
+                      <option value="URL Frame">URL Frame</option>
+                      <option value="TXT">TXT(Text)</option>
+                      <option value="AAAA">AAAA (IPV6 Host)</option>
+                      <option value="SRV">SRV Record</option>
+                      </select></td>
                       <td className="border-b border-zinc-200 px-2 py-2"><input className={inputCellClass} value={row.value} onChange={(e) => {
                         const srcIndex = records.indexOf(row); if (srcIndex < 0) return;
                         const next = [...records]; next[srcIndex] = { ...next[srcIndex], value: e.target.value }; setRecords(next);

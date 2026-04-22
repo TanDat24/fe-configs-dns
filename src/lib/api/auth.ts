@@ -4,6 +4,8 @@ import type {
   ChangePasswordResponseDto,
   ForgotPasswordRequestDto,
   ForgotPasswordResponseDto,
+  LoginDomainRequestDto,
+  LoginDomainResponseDto,
   LoginRequestDto,
   LoginResponseDto,
   RegisterRequestDto,
@@ -28,6 +30,30 @@ export async function login(input: LoginInput): Promise<LoginResult> {
   }
 
   return { authToken: data.authToken };
+}
+
+export type LoginByDomainInput = LoginDomainRequestDto;
+export type LoginByDomainResult = LoginDomainResponseDto;
+
+export async function loginByDomain(
+  input: LoginByDomainInput,
+): Promise<LoginByDomainResult> {
+  const data = await apiJson<LoginDomainResponseDto>(
+    "/api/auth/login-domain",
+    {
+      method: "POST",
+      json: {
+        domain: input.domain.trim(),
+        password: input.password,
+      },
+    },
+  );
+
+  if (!data.authToken) {
+    throw new ApiError("Không nhận được token.", 500, data);
+  }
+
+  return data;
 }
 
 export type RegisterInput = RegisterRequestDto;

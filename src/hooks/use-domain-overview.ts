@@ -59,6 +59,12 @@ export function useDomainOverview() {
         setDomains(domainList);
         setTemplates(tpl);
         setSecurityPackages(secPackages);
+        if (domainList.length === 0) {
+          setSelectedSlug("");
+          setDomainData(null);
+          setLoading(false);
+          return;
+        }
         const preferred = domainList.find((d) => d.slug === fallbackSlug) ?? domainList[0];
         setSelectedSlug(preferred?.slug ?? fallbackSlug);
       } catch (err) {

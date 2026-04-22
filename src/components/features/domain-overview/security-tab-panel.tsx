@@ -73,9 +73,12 @@ function buildServices(
   packages: SecurityPackage[],
   saved: SecurityService[],
 ): SecurityService[] {
+  const normalize = (s: string) => (s || "").trim().toLowerCase();
   return packages.map((pkg) => {
     const key = String(pkg.id);
-    const existing = saved.find((s) => s.id === key);
+    const existing =
+      saved.find((s) => s.id === key) ??
+      saved.find((s) => normalize(s.title) === normalize(pkg.title));
     return {
       id: key,
       title: pkg.title,

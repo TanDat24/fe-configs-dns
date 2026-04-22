@@ -16,6 +16,14 @@ const LOGIN_WITH_GOOGLE_MUTATION = `
   }
 `;
 
+const LOGIN_WITH_ZALO_MUTATION = `
+  mutation LoginWithZalo($zaloId: String!, $name: String, $picture: String) {
+    loginWithZalo(input: { zaloId: $zaloId, name: $name, picture: $picture }) {
+      authToken
+    }
+  }
+`;
+
 type RegisterResponse = {
   data?: { registerDnsUser?: { message?: string | null } | null };
   errors?: Array<{ message: string }>;
@@ -23,6 +31,11 @@ type RegisterResponse = {
 
 type GoogleLoginResponse = {
   data?: { loginWithGoogle?: { authToken?: string | null } | null };
+  errors?: Array<{ message: string }>;
+};
+
+type ZaloLoginResponse = {
+  data?: { loginWithZalo?: { authToken?: string | null } | null };
   errors?: Array<{ message: string }>;
 };
 
@@ -93,6 +106,42 @@ export async function wpLoginWithGoogle(
     }
 
     const authToken = json.data?.loginWithGoogle?.authToken;
+    if (!authToken) {
+      return { ok: false, status: 401, message: "Khong nhan duoc token tu may chu." };
+    }
+
+    return { ok: true, authToken };
+  } catch {
+    return { ok: false, status: 502, message: "Khong ket noi duoc may chu WordPress." };
+  }
+}
+
+export async function wpLoginWithZalo(
+  endpoint: string,
+  input: { zaloId: string; name?: string; picture?: string },
+): Promise<{ ok: true; authToken: string } | { ok: false; status: number; message: string }> {
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: LOGIN_WITH_ZALO_MUTATION,
+        variables: {
+          zaloId: input.zaloId,
+          name: input.name ?? null,
+          picture: input.picture ?? null,
+        },
+      }),
+      cache: "no-store",
+    });
+
+    const json = await parseJson<ZaloLoginResponse>(res);
+
+    if (json.errors?.length) {
+      return { ok: false, status: 401, message: json.errors[0]?.message ?? "Dang nhap Zalo that bai." };
+    }
+
+    const authToken = json.data?.loginWithZalo?.authToken;
     if (!authToken) {
       return { ok: false, status: 401, message: "Khong nhan duoc token tu may chu." };
     }

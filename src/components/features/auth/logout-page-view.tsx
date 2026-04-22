@@ -4,12 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
-import { login, register } from "@/lib/api/auth";
+import { login, loginByDomain, register } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
 
 const BTN_TEAL = "bg-[#A8DADC]";
 
 type Tab = "login" | "register";
+type LoginMode = "account" | "domain";
 
 function postLoginPath(nextParam: string | null): string {
   if (!nextParam) return "/";
@@ -23,16 +24,16 @@ function EyeToggle({ show, onToggle }: { show: boolean; onToggle: () => void }) 
     <button
       type="button"
       onClick={onToggle}
-      className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-800"
+      className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700"
       aria-label={show ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
     >
       {show ? (
-        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
           <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
       ) : (
-        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
         </svg>
       )}
@@ -42,7 +43,7 @@ function EyeToggle({ show, onToggle }: { show: boolean; onToggle: () => void }) 
 
 function GoogleIcon() {
   return (
-    <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" aria-hidden>
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" aria-hidden>
       <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
       <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
       <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
@@ -51,53 +52,90 @@ function GoogleIcon() {
   );
 }
 
-function GoogleButton({ next, label }: { next: string; label: string }) {
+function ZaloIcon() {
   return (
-    <a
-      href={`/api/auth/google?next=${encodeURIComponent(next)}`}
-      className="flex w-full items-center justify-center gap-2.5 rounded-md border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-50 active:bg-zinc-100"
-    >
-      <GoogleIcon />
-      {label}
-    </a>
+    <svg className="h-4 w-4 shrink-0" viewBox="0 0 48 48" aria-hidden>
+      <path
+        fill="#0068FF"
+        d="M24 4C12.954 4 4 12.278 4 22.5c0 5.56 2.63 10.57 6.85 14.02-.17 1.33-.66 3.45-1.74 5.28-.3.5.17 1.17.74 1.03 3.08-.78 6.2-2.43 8.07-3.6 1.95.5 4 .77 6.08.77 11.046 0 20-8.28 20-18.5S35.046 4 24 4z"
+      />
+      <path
+        fill="#fff"
+        d="M15.6 16.5c.6 0 1 .4 1 1v8.9h4.8c.6 0 1 .4 1 1s-.4 1-1 1h-5.8c-.6 0-1-.4-1-1V17.5c0-.6.4-1 1-1zm10.8 2.8c.6 0 1 .4 1 1v6.3c0 .6-.4 1-1 1s-1-.4-1-1v-6.3c0-.6.4-1 1-1zm.7-3c.5 0 .9.4.9.9s-.4.9-.9.9h-1.4c-.5 0-.9-.4-.9-.9s.4-.9.9-.9h1.4zm6.4 2.9c2.14 0 3.9 1.8 3.9 4s-1.76 4-3.9 4c-.85 0-1.64-.28-2.28-.76-.18.44-.6.76-1.1.76-.6 0-1.07-.5-1.07-1.1v-5.8c0-.6.47-1.1 1.07-1.1.5 0 .92.32 1.1.76.64-.48 1.43-.76 2.28-.76zm0 1.9c-1.13 0-2.06.95-2.06 2.1s.93 2.1 2.06 2.1 2.06-.95 2.06-2.1-.93-2.1-2.06-2.1z"
+      />
+    </svg>
   );
 }
 
-function Divider() {
+function SocialButton({
+  href,
+  icon,
+  label,
+  brand,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  brand?: "google" | "zalo";
+}) {
   return (
-    <div className="flex items-center gap-3 py-1">
-      <div className="h-px flex-1 bg-zinc-200" />
-      <span className="text-xs text-zinc-400">hoặc</span>
-      <div className="h-px flex-1 bg-zinc-200" />
-    </div>
+    <a
+      href={href}
+      className={`flex h-10 items-center justify-center gap-2 rounded-md border text-xs font-medium transition active:scale-[0.98] ${
+        brand === "zalo"
+          ? "border-[#0068FF]/20 bg-[#0068FF]/5 text-[#0068FF] hover:bg-[#0068FF]/10"
+          : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </a>
   );
 }
 
 function Alert({ type, children }: { type: "error" | "success"; children: React.ReactNode }) {
   const styles =
     type === "error"
-      ? "border-red-200 bg-red-50 text-red-800"
-      : "border-emerald-200 bg-emerald-50 text-emerald-900";
+      ? "border-red-200 bg-red-50 text-red-700"
+      : "border-emerald-200 bg-emerald-50 text-emerald-800";
   return (
-    <p className={`rounded-md border px-3 py-2 text-sm ${styles}`} role={type === "error" ? "alert" : "status"}>
+    <p
+      className={`rounded-md border px-3 py-2 text-[13px] ${styles}`}
+      role={type === "error" ? "alert" : "status"}
+    >
       {children}
     </p>
   );
 }
 
-function InputField({
-  id, label, type = "text", value, onChange, disabled, autoComplete, required,
+function Field({
+  id,
+  label,
+  type = "text",
+  value,
+  onChange,
+  disabled,
+  autoComplete,
+  placeholder,
 }: {
-  id: string; label: string; type?: string; value: string;
-  onChange: (v: string) => void; disabled: boolean; autoComplete?: string; required?: boolean;
+  id: string;
+  label?: string;
+  type?: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+  autoComplete?: string;
+  placeholder?: string;
 }) {
   const [showPw, setShowPw] = useState(false);
   const isPassword = type === "password";
   return (
     <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-zinc-800">
-        {label}{required && <span className="ml-0.5 text-red-500">*</span>}
-      </label>
+      {label && (
+        <label htmlFor={id} className="mb-1 block text-xs font-medium text-zinc-600">
+          {label}
+        </label>
+      )}
       <div className="relative">
         <input
           id={id}
@@ -107,7 +145,10 @@ function InputField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className={`w-full rounded-md border border-zinc-300 bg-white py-2.5 text-sm text-zinc-900 focus:border-teal-600 focus:outline-none disabled:opacity-60 ${isPassword ? "pl-3 pr-11" : "px-3"}`}
+          placeholder={placeholder}
+          className={`h-10 w-full rounded-md border border-zinc-200 bg-white text-sm text-zinc-900 placeholder:text-zinc-400 transition focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/10 disabled:opacity-60 ${
+            isPassword ? "pl-3 pr-10" : "px-3"
+          }`}
         />
         {isPassword && <EyeToggle show={showPw} onToggle={() => setShowPw((v) => !v)} />}
       </div>
@@ -115,9 +156,45 @@ function InputField({
   );
 }
 
+function LoginModeToggle({
+  mode,
+  onChange,
+  disabled,
+}: {
+  mode: LoginMode;
+  onChange: (m: LoginMode) => void;
+  disabled: boolean;
+}) {
+  const modes: Array<{ id: LoginMode; label: string }> = [
+    { id: "account", label: "Tài khoản" },
+    { id: "domain", label: "Tên miền" },
+  ];
+  return (
+    <div className="flex gap-1 rounded-md bg-zinc-100 p-1">
+      {modes.map((m) => (
+        <button
+          key={m.id}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(m.id)}
+          className={`flex-1 rounded py-1.5 text-xs font-medium transition ${
+            mode === m.id
+              ? "bg-white text-zinc-900 shadow-sm"
+              : "text-zinc-500 hover:text-zinc-700"
+          } disabled:opacity-60`}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function LoginForm({ nextPath, onSuccess }: { nextPath: string; onSuccess: () => void }) {
   const router = useRouter();
+  const [mode, setMode] = useState<LoginMode>("account");
   const [username, setUsername] = useState("");
+  const [domain, setDomain] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,7 +204,11 @@ function LoginForm({ nextPath, onSuccess }: { nextPath: string; onSuccess: () =>
     setError(null);
     setLoading(true);
     try {
-      await login({ username, password });
+      if (mode === "domain") {
+        await loginByDomain({ domain, password });
+      } else {
+        await login({ username, password });
+      }
       router.push(postLoginPath(nextPath));
       router.refresh();
       onSuccess();
@@ -138,15 +219,49 @@ function LoginForm({ nextPath, onSuccess }: { nextPath: string; onSuccess: () =>
     }
   }
 
+  function handleModeChange(next: LoginMode) {
+    if (next === mode) return;
+    setMode(next);
+    setError(null);
+    setPassword("");
+  }
+
   return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
+    <form className="space-y-3" onSubmit={handleSubmit}>
+      <LoginModeToggle mode={mode} onChange={handleModeChange} disabled={loading} />
       {error && <Alert type="error">{error}</Alert>}
-      <InputField id="auth-username" label="Tên người dùng hoặc email" value={username} onChange={setUsername} disabled={loading} autoComplete="username" required />
-      <InputField id="auth-password" label="Mật khẩu" type="password" value={password} onChange={setPassword} disabled={loading} autoComplete="current-password" required />
+      {mode === "account" ? (
+        <Field
+          id="auth-username"
+          value={username}
+          onChange={setUsername}
+          disabled={loading}
+          autoComplete="username"
+          placeholder="Tên người dùng hoặc email"
+        />
+      ) : (
+        <Field
+          id="auth-domain"
+          value={domain}
+          onChange={setDomain}
+          disabled={loading}
+          autoComplete="off"
+          placeholder="example.com"
+        />
+      )}
+      <Field
+        id="auth-password"
+        type="password"
+        value={password}
+        onChange={setPassword}
+        disabled={loading}
+        autoComplete="current-password"
+        placeholder="Mật khẩu"
+      />
       <button
         type="submit"
         disabled={loading}
-        className={`w-full rounded-md ${BTN_TEAL} py-2.5 text-sm font-semibold text-zinc-900 transition hover:opacity-90 disabled:opacity-60`}
+        className={`h-10 w-full rounded-md ${BTN_TEAL} text-sm font-semibold text-zinc-900 transition hover:opacity-90 disabled:opacity-60`}
       >
         {loading ? "Đang đăng nhập…" : "Đăng nhập"}
       </button>
@@ -154,7 +269,13 @@ function LoginForm({ nextPath, onSuccess }: { nextPath: string; onSuccess: () =>
   );
 }
 
-function RegisterForm({ nextPath, onRegistered }: { nextPath: string; onRegistered: (autoLogin: boolean) => void }) {
+function RegisterForm({
+  nextPath,
+  onRegistered,
+}: {
+  nextPath: string;
+  onRegistered: (autoLogin: boolean) => void;
+}) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
@@ -187,16 +308,47 @@ function RegisterForm({ nextPath, onRegistered }: { nextPath: string; onRegister
   }
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
+    <form className="space-y-3" onSubmit={handleSubmit}>
       {error && <Alert type="error">{error}</Alert>}
-      <InputField id="reg-email" label="Địa chỉ email" type="email" value={email} onChange={setEmail} disabled={loading} autoComplete="email" required />
-      <InputField id="reg-username" label="Tên người dùng" value={username} onChange={setUsername} disabled={loading} autoComplete="username" required />
-      <InputField id="reg-password" label="Mật khẩu" type="password" value={password} onChange={setPassword} disabled={loading} autoComplete="new-password" required />
-      <InputField id="reg-confirm" label="Xác nhận mật khẩu" type="password" value={confirmPassword} onChange={setConfirmPassword} disabled={loading} autoComplete="new-password" required />
+      <Field
+        id="reg-email"
+        type="email"
+        value={email}
+        onChange={setEmail}
+        disabled={loading}
+        autoComplete="email"
+        placeholder="Email"
+      />
+      <Field
+        id="reg-username"
+        value={username}
+        onChange={setUsername}
+        disabled={loading}
+        autoComplete="username"
+        placeholder="Tên người dùng"
+      />
+      <Field
+        id="reg-password"
+        type="password"
+        value={password}
+        onChange={setPassword}
+        disabled={loading}
+        autoComplete="new-password"
+        placeholder="Mật khẩu"
+      />
+      <Field
+        id="reg-confirm"
+        type="password"
+        value={confirmPassword}
+        onChange={setConfirmPassword}
+        disabled={loading}
+        autoComplete="new-password"
+        placeholder="Xác nhận mật khẩu"
+      />
       <button
         type="submit"
         disabled={loading}
-        className={`w-full rounded-md ${BTN_TEAL} py-2.5 text-sm font-semibold text-zinc-900 transition hover:opacity-90 disabled:opacity-60`}
+        className={`h-10 w-full rounded-md ${BTN_TEAL} text-sm font-semibold text-zinc-900 transition hover:opacity-90 disabled:opacity-60`}
       >
         {loading ? "Đang tạo tài khoản…" : "Tạo tài khoản"}
       </button>
@@ -207,70 +359,65 @@ function RegisterForm({ nextPath, onRegistered }: { nextPath: string; onRegister
 function LogoutPageViewInner() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") ?? "/";
-  const googleError = searchParams.get("error");
+  const oauthError = searchParams.get("error");
 
   const [tab, setTab] = useState<Tab>("login");
   const [registerSuccess, setRegisterSuccess] = useState(false);
 
-  const googleErrorMsg: Record<string, string> = {
+  const oauthErrorMsg: Record<string, string> = {
     google_cancelled: "Bạn đã huỷ đăng nhập Google.",
     google_token: "Không thể xác thực tài khoản Google. Thử lại.",
     google_login: "Đăng nhập Google thất bại. Thử lại hoặc dùng tài khoản thường.",
-    config: "Tính năng đăng nhập Google chưa được cấu hình.",
+    google_config: "Tính năng đăng nhập Google chưa được cấu hình.",
+    zalo_cancelled: "Bạn đã huỷ đăng nhập Zalo.",
+    zalo_token: "Không thể xác thực tài khoản Zalo. Thử lại.",
+    zalo_login: "Đăng nhập Zalo thất bại. Thử lại hoặc dùng tài khoản thường.",
+    zalo_config: "Tính năng đăng nhập Zalo chưa được cấu hình.",
+    config: "Tính năng đăng nhập bên thứ ba chưa được cấu hình.",
   };
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-white">
+    <div className="relative flex min-h-0 flex-1 flex-col bg-gradient-to-b from-zinc-50 to-white">
       <Link
         href="#"
-        className="absolute right-4 top-4 z-10 text-sm text-zinc-500 hover:text-zinc-800 sm:right-8 sm:top-5"
+        className="absolute right-4 top-4 z-10 text-xs text-zinc-500 hover:text-zinc-800 sm:right-6 sm:top-5"
       >
         Tiếng Việt
       </Link>
 
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 sm:py-20">
-        <div className="w-full max-w-md border border-zinc-200 bg-white px-8 py-10 sm:px-10 sm:py-12">
-          <div className="mb-7 flex justify-center">
-            <Image src="/logo-1.png" alt="CONFIGGS DNS Logo" width={280} height={80} className="h-14 w-auto object-contain sm:h-16" priority />
-          </div>
-
-          {/* Tabs */}
-          <div className="mb-6 flex overflow-hidden rounded-md border border-zinc-200">
-            {(["login", "register"] as Tab[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => { setTab(t); setRegisterSuccess(false); }}
-                className={`flex-1 py-2 text-sm font-medium transition ${tab === t ? `${BTN_TEAL} text-zinc-900` : "bg-white text-zinc-500 hover:bg-zinc-50"}`}
-              >
-                {t === "login" ? "Đăng nhập" : "Đăng ký"}
-              </button>
-            ))}
-          </div>
-
-          {/* Google error */}
-          {googleError && googleErrorMsg[googleError] && (
-            <div className="mb-4">
-              <Alert type="error">{googleErrorMsg[googleError]}</Alert>
-            </div>
-          )}
-
-          {/* Register success (no auto-login) */}
-          {registerSuccess && (
-            <div className="mb-4">
-              <Alert type="success">Tạo tài khoản thành công! Vui lòng đăng nhập.</Alert>
-            </div>
-          )}
-
-          {/* Google button */}
-          <div className="space-y-3">
-            <GoogleButton
-              next={nextPath}
-              label={tab === "login" ? "Đăng nhập với Google" : "Đăng ký với Google"}
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-10 sm:py-14">
+        <div className="w-full max-w-[380px] rounded-xl border border-zinc-200/80 bg-white px-7 py-8 shadow-sm sm:px-8 sm:py-9">
+          <div className="mb-5 flex justify-center">
+            <Image
+              src="/logo-1.png"
+              alt="CONFIGGS DNS"
+              width={280}
+              height={80}
+              className="h-14 w-auto object-contain sm:h-16"
+              priority
             />
           </div>
 
-          <Divider />
+          <h1 className="mb-1 text-center text-lg font-semibold text-zinc-900">
+            {tab === "login" ? "Chào mừng trở lại" : "Tạo tài khoản mới"}
+          </h1>
+          <p className="mb-5 text-center text-xs text-zinc-500">
+            {tab === "login"
+              ? "Đăng nhập để quản lý tên miền của bạn"
+              : "Đăng ký miễn phí chỉ trong vài giây"}
+          </p>
+
+          {oauthError && oauthErrorMsg[oauthError] && (
+            <div className="mb-3">
+              <Alert type="error">{oauthErrorMsg[oauthError]}</Alert>
+            </div>
+          )}
+
+          {registerSuccess && (
+            <div className="mb-3">
+              <Alert type="success">Tạo tài khoản thành công! Vui lòng đăng nhập.</Alert>
+            </div>
+          )}
 
           {tab === "login" ? (
             <LoginForm nextPath={nextPath} onSuccess={() => {}} />
@@ -286,24 +433,60 @@ function LogoutPageViewInner() {
             />
           )}
 
-          {/* Footer links */}
-          <div className="mt-5 flex items-center justify-between text-sm text-zinc-500">
+          <div className="my-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-zinc-200" />
+            <span className="text-[11px] uppercase tracking-wider text-zinc-400">
+              Hoặc tiếp tục với
+            </span>
+            <div className="h-px flex-1 bg-zinc-200" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <SocialButton
+              href={`/api/auth/google?next=${encodeURIComponent(nextPath)}`}
+              icon={<GoogleIcon />}
+              label="Google"
+            />
+            <SocialButton
+              href={`/api/auth/zalo?next=${encodeURIComponent(nextPath)}`}
+              icon={<ZaloIcon />}
+              label="Zalo"
+              brand="zalo"
+            />
+          </div>
+
+          <div className="mt-5 flex items-center justify-between text-xs text-zinc-500">
             {tab === "login" ? (
               <>
-                <button type="button" onClick={() => setTab("register")} className="underline-offset-2 hover:text-zinc-800 hover:underline">
+                <button
+                  type="button"
+                  onClick={() => setTab("register")}
+                  className="underline-offset-2 hover:text-zinc-800 hover:underline"
+                >
                   Tạo tài khoản mới
                 </button>
-                <Link href="/forgot-password" className="underline-offset-2 hover:text-zinc-800 hover:underline">
+                <Link
+                  href="/forgot-password"
+                  className="underline-offset-2 hover:text-zinc-800 hover:underline"
+                >
                   Quên mật khẩu?
                 </Link>
               </>
             ) : (
-              <button type="button" onClick={() => setTab("login")} className="underline-offset-2 hover:text-zinc-800 hover:underline">
+              <button
+                type="button"
+                onClick={() => setTab("login")}
+                className="mx-auto underline-offset-2 hover:text-zinc-800 hover:underline"
+              >
                 Đã có tài khoản? Đăng nhập
               </button>
             )}
           </div>
         </div>
+
+        <p className="mt-5 text-center text-[11px] text-zinc-400">
+          &copy; {new Date().getFullYear()} CONFIGGS DNS. All rights reserved.
+        </p>
       </div>
     </div>
   );
@@ -319,9 +502,9 @@ export function LogoutPageView() {
 
 function LogoutPageViewFallback() {
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-white">
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 sm:py-20">
-        <div className="w-full max-w-md border border-zinc-200 bg-white px-8 py-10 sm:px-10 sm:py-12">
+    <div className="relative flex min-h-0 flex-1 flex-col bg-gradient-to-b from-zinc-50 to-white">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-14">
+        <div className="w-full max-w-[380px] rounded-xl border border-zinc-200/80 bg-white px-8 py-9 shadow-sm">
           <p className="text-center text-sm text-zinc-500">Đang tải…</p>
         </div>
       </div>

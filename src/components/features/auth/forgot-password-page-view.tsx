@@ -8,6 +8,21 @@ import { ApiError } from "@/lib/api/client";
 
 const BTN_TEAL = "bg-[#A8DADC]";
 
+function Alert({ type, children }: { type: "error" | "success"; children: React.ReactNode }) {
+  const styles =
+    type === "error"
+      ? "border-red-200 bg-red-50 text-red-700"
+      : "border-emerald-200 bg-emerald-50 text-emerald-800";
+  return (
+    <p
+      className={`rounded-md border px-3 py-2 text-[13px] ${styles}`}
+      role={type === "error" ? "alert" : "status"}
+    >
+      {children}
+    </p>
+  );
+}
+
 export function ForgotPasswordPageView() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,20 +49,20 @@ export function ForgotPasswordPageView() {
   }
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col bg-zinc-100">
+    <div className="relative flex min-h-0 flex-1 flex-col bg-gradient-to-b from-zinc-50 to-white">
       <Link
         href="#"
-        className="absolute right-4 top-4 z-10 text-sm text-zinc-500 hover:text-zinc-800 sm:right-8 sm:top-5"
+        className="absolute right-4 top-4 z-10 text-xs text-zinc-500 hover:text-zinc-800 sm:right-6 sm:top-5"
       >
         Tiếng Việt
       </Link>
 
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 sm:py-20">
-        <div className="w-full max-w-md border border-zinc-200 bg-white px-8 py-10 sm:px-10 sm:py-12">
-          <div className="mb-6 flex justify-center">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-10 sm:py-14">
+        <div className="w-full max-w-[380px] rounded-xl border border-zinc-200/80 bg-white px-7 py-8 shadow-sm sm:px-8 sm:py-9">
+          <div className="mb-5 flex justify-center">
             <Image
               src="/logo-1.png"
-              alt="CONFIGGS DNS Logo"
+              alt="CONFIGGS DNS"
               width={280}
               height={80}
               className="h-14 w-auto object-contain sm:h-16"
@@ -55,36 +70,18 @@ export function ForgotPasswordPageView() {
             />
           </div>
 
-          <div className="mb-6 border-l-4 border-sky-400 bg-sky-50/50 py-3 pl-4 pr-2 text-sm leading-relaxed text-zinc-700">
-            Vui lòng điền tên người dùng hoặc địa chỉ email của bạn. Bạn sẽ nhận
-            được một email với hướng dẫn khôi phục mật khẩu.
-          </div>
+          <h1 className="mb-1 text-center text-lg font-semibold text-zinc-900">
+            Quên mật khẩu
+          </h1>
+          <p className="mb-5 text-center text-xs text-zinc-500">
+            Nhập email hoặc tên người dùng để nhận hướng dẫn khôi phục
+          </p>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            {error ? (
-              <p
-                className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
-                role="alert"
-              >
-                {error}
-              </p>
-            ) : null}
-            {successMessage ? (
-              <p
-                className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
-                role="status"
-              >
-                {successMessage}
-              </p>
-            ) : null}
+          <form className="space-y-3" onSubmit={handleSubmit}>
+            {error && <Alert type="error">{error}</Alert>}
+            {successMessage && <Alert type="success">{successMessage}</Alert>}
 
             <div>
-              <label
-                htmlFor="forgot-email"
-                className="mb-1.5 block text-sm font-medium text-zinc-800"
-              >
-                Tên người dùng hoặc địa chỉ email
-              </label>
               <input
                 id="forgot-email"
                 name="email"
@@ -93,28 +90,33 @@ export function ForgotPasswordPageView() {
                 value={email}
                 onChange={(ev) => setEmail(ev.target.value)}
                 disabled={loading}
-                className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 focus:border-teal-600 focus:outline-none disabled:opacity-60"
+                placeholder="Tên người dùng hoặc email"
+                className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 transition focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/10 disabled:opacity-60"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className={`w-full rounded-md ${BTN_TEAL} py-2.5 text-sm font-semibold text-zinc-900 transition hover:opacity-90 disabled:opacity-60`}
+              className={`h-10 w-full rounded-md ${BTN_TEAL} text-sm font-semibold text-zinc-900 transition hover:opacity-90 disabled:opacity-60`}
             >
               {loading ? "Đang gửi…" : "Lấy mật khẩu mới"}
             </button>
           </form>
 
-          <div className="mt-6 text-right">
+          <div className="mt-5 flex items-center justify-center text-xs text-zinc-500">
             <Link
               href="/logout"
-              className="text-sm text-zinc-500 underline-offset-2 hover:text-zinc-800 hover:underline"
+              className="underline-offset-2 hover:text-zinc-800 hover:underline"
             >
-              Đăng nhập
+              ← Quay lại đăng nhập
             </Link>
           </div>
         </div>
+
+        <p className="mt-5 text-center text-[11px] text-zinc-400">
+          &copy; {new Date().getFullYear()} CONFIGGS DNS. All rights reserved.
+        </p>
       </div>
     </div>
   );

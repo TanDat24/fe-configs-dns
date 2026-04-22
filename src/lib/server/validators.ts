@@ -31,6 +31,18 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Vui long nhap mat khau."),
 });
 
+export const loginDomainSchema = z.object({
+  domain: z
+    .string()
+    .trim()
+    .min(3, "Vui long nhap ten mien.")
+    .regex(
+      /^(?:https?:\/\/)?(?:www\.)?[a-z0-9][a-z0-9.\-]*\.[a-z]{2,}(?:\/.*)?$/i,
+      "Ten mien khong hop le.",
+    ),
+  password: z.string().min(1, "Vui long nhap mat khau."),
+});
+
 export const forgotPasswordSchema = z.object({
   email: z.string().trim().min(1, "Vui long nhap email hoac ten nguoi dung."),
 });
