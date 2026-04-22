@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
+import { getPublicOrigin } from "@/lib/server/public-origin";
 
 export const ZALO_PKCE_COOKIE = "zalo_pkce";
 
@@ -13,7 +14,8 @@ function pkceChallenge(verifier: string): string {
 }
 
 export async function GET(request: Request) {
-  const { origin, searchParams } = new URL(request.url);
+  const origin = getPublicOrigin(request);
+  const searchParams = new URL(request.url).searchParams;
   const next = searchParams.get("next") ?? "/";
 
   const appId = process.env.ZALO_APP_ID;

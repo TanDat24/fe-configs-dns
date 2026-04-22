@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { WP_AUTH_COOKIE_NAME, wpAuthCookieOptions } from "@/lib/auth-cookie";
+import { getPublicOrigin } from "@/lib/server/public-origin";
 import { wpLoginWithZalo } from "@/lib/server/wp-register";
 import { ZALO_PKCE_COOKIE } from "../route";
 
@@ -93,7 +94,8 @@ function parseNextFromState(state: string | null): string {
 }
 
 export async function GET(request: Request) {
-  const { origin, searchParams } = new URL(request.url);
+  const origin = getPublicOrigin(request);
+  const searchParams = new URL(request.url).searchParams;
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const nextPath = parseNextFromState(state);

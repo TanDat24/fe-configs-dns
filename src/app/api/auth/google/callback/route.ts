@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { WP_AUTH_COOKIE_NAME, wpAuthCookieOptions } from "@/lib/auth-cookie";
+import { getPublicOrigin } from "@/lib/server/public-origin";
 import { wpLoginWithGoogle } from "@/lib/server/wp-register";
 
 const AUTH_COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 7;
@@ -47,7 +48,7 @@ function parseNextFromState(state: string | null): string {
 }
 
 export async function GET(request: Request) {
-  const { origin } = new URL(request.url);
+  const origin = getPublicOrigin(request);
   const sp = new URL(request.url).searchParams;
   const code = sp.get("code");
   const state = sp.get("state");
