@@ -15,6 +15,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Config DNS",
   description: "Quản lý cấu hình DNS",
+  verification: {
+    other: {
+      "zalo-platform-site-verification":
+        process.env.NEXT_PUBLIC_ZALO_SITE_VERIFICATION ??
+        "GVsi8u3O0nrSzTX5XD5mIdFWtXMVbWj8E30m",
+    },
+  },
 };
 
 export default function RootLayout({
