@@ -1,187 +1,262 @@
-# FE Config DNS - Tong Quan He Thong
+# SYSTEM-WIDE AUDIT REPORT
 
-## 1) Muc tieu du an
+Tai lieu nay tong hop ket qua audit toan he thong (FE + BE WordPress + DB + van hanh), theo 8 nhom yeu cau.
 
-`fe-config-dns` la ung dung `Next.js App Router` dung de:
-- Dang nhap vao he thong quan ly DNS.
-- Xem/sua thong tin tong quan ten mien.
-- Quan ly DNS records, name servers, child DNS, email forwarding.
-- Quan ly cac goi bao mat va 2FA cho tung ten mien.
-- Thuc hien doi mat khau, quen mat khau cho tai khoan dang nhap.
-
-Backend du lieu hien tai la WordPress GraphQL (qua `WP_GRAPHQL_URL`), FE dong vai tro BFF thong qua cac route `src/app/api/*`.
+Phan loai muc do:
+- Critical: can xu ly ngay (bao mat/du lieu/production outage)
+- High: rui ro cao, can fix trong sprint hien tai
+- Medium: can fix de giam no ky thuat va su co
+- Low: cai tien chat luong va van hanh
 
 ---
 
-## 2) Kien truc tong the
+## 1) BUG DETECTION
 
-### 2.1 Cong nghe chinh
-- `Next.js 16` + `React 19` + `TypeScript`
-- Styling bang Tailwind (v4 stack)
-- `react-gauge-component` cho hieu thi muc do bao ve
+### Critical
+- **Lo du lieu nhay cam trong SQL dump**
+  - Cac file SQL trong `db` chua thong tin PII va hash mat khau that.
+  - Vi du: `db/nlbdpzvthosting_figsdnscom1.sql`, `db/wp_w366_user_info.sql`, `db/wp_w366_order_contact.sql`.
+  - Tac dong: ro ri du lieu nguoi dung, vi pham compliance.
 
-### 2.2 Mo hinh luong request
-1. UI component goi ham trong `src/lib/api/*`.
-2. Ham `lib/api` goi route noi bo `/api/...` (Next Route Handler).
-3. Route Handler doc cookie `wp_graphql_auth`, kiem tra auth.
-4. Route Handler goi WordPress GraphQL qua `src/lib/server/*`.
-5. Chuan hoa response tra ve UI.
+### High
+- **OAuth flow thieu state/nonce verification dung nghia**
+  - FE callback Google/Zalo xu ly `code` nhung state khong duoc rang buoc session chat che.
+  - File: `fe-config-dns/src/app/api/auth/google/route.ts`, `.../google/callback/route.ts`, `.../zalo/*`.
+  - Tac dong: rui ro CSRF dang nhap/fixation trong OAuth.
 
-### 2.3 Auth model
-- Cookie auth: `wp_graphql_auth` (`httpOnly`, `sameSite=lax`, `secure` theo moi truong).
-- Middleware (`src/middleware.ts`) bao ve cac route app (tru `logout`, `forgot-password`, static, `api`).
-- Neu khong co cookie -> redirect ve `/logout` (man hinh dang nhap).
+- **Zalo login tren BE chua xac minh identity token server-side**
+  - `loginWithZalo` nhan `zaloId` tu client va dang nhap/tao user.
+  - File: `be-config-dns/themes/dns/modules/auth/auth-graphql.php`.
+  - Tac dong: co the gia mao danh tinh neu biet `zaloId`.
 
----
+- **Google login tren BE chua check du claim (`aud`, `iss`, `azp`)**
+  - File: `be-config-dns/themes/dns/modules/auth/auth-graphql.php`.
+  - Tac dong: chap nhan token khong dung app client mong doi.
 
-## 3) Cau truc thu muc quan trong
+### Medium
+- **Write payload truyen thang, validation con mong**
+  - Nhieu route FE nhan JSON raw roi forward backend.
+  - File: `fe-config-dns/src/app/api/customer-data/*`.
+  - Tac dong: loi runtime/mass assignment/du lieu ban.
 
-## `src/app`
-- `layout.tsx`: root layout, metadata toan app.
-- `(main)/layout.tsx`: layout sau khi da vao app (AppShell).
-- `(main)/page.tsx`: trang chinh, render `HomeView`.
-- `logout/page.tsx`: trang dang nhap.
-- `forgot-password/page.tsx`: trang quen mat khau.
-- `api/auth/*`: API auth noi bo (login/logout/viewer/forgot/change-password).
-- `api/domain/*`: API domain noi bo (list/detail/templates/security-packages/save-tab).
+- **Rui ro partial update khi save overview**
+  - FE save tung field theo vong lap, fail giua chung se de lai trang thai nua chung.
+  - File: `fe-config-dns/src/lib/api/domain.ts`.
 
-## `src/components`
-- `features/auth/*`: man hinh dang nhap, quen mat khau.
-- `features/domain-overview/*`: dashboard tong quan, tab DNS, tab security, gauge.
-- `layout/*`: shell/header/footer.
-- `ui/*`: component dung chung.
+- **Permission logic write/read dang gan nhau**
+  - `dns_graphql_can_write_domains()` dung gate read-level.
+  - File: `be-config-dns/themes/dns/modules/domain-panel/domain-panel-relational.php`.
+  - Tac dong: mo rong surface ghi du lieu hon muc ky vong.
 
-## `src/lib`
-- `api/client.ts`: wrapper fetch + ApiError + ngrok bypass header.
-- `api/auth.ts`, `api/domain.ts`: client API cho UI.
-- `server/wp-*.ts`: server-side connector den WordPress GraphQL.
-- `auth-cookie.ts`: cookie name + cookie options.
-- `domain-types.ts`: type domain/DNS/security.
-
-## Files khac
-- `.env.local`: `WP_GRAPHQL_URL`
-- `middleware.ts`: route protection.
-- `package.json`: scripts/dependencies.
+### Low
+- **Logout API co the bi trigger cross-site (forced logout)**
+  - File: `fe-config-dns/src/app/api/auth/logout/route.ts`.
 
 ---
 
-## 4) Chuc nang FE hien tai
+## 2) MISSING PARTS
 
-### 4.1 Dang nhap/Dang xuat
-- Dang nhap tai `/logout` (login form).
-- Goi `POST /api/auth/login`, sau do set cookie `wp_graphql_auth`.
-- Dang xuat qua `POST /api/auth/logout` (clear cookie).
+### High
+- **Thieu test tu dong cho flow quan trong**
+  - Hien chua co unit/integration/e2e test ro rang cho FE/BE chinh.
+  - Tac dong: regression de lot vao production.
 
-### 4.2 Quen mat khau
-- Form tai `/forgot-password`.
-- Goi `POST /api/auth/forgot-password`.
-- BE/WordPress xu ly gui email reset.
+- **Thieu CI quality gates cap repo**
+  - Chua co workflow CI cho app FE/BE chinh.
+  - Plugin test workflow khong bao phu he thong that.
 
-### 4.3 Xac dinh nguoi dung hien tai
-- `GET /api/auth/viewer` de lay thong tin `viewer` tu WP GraphQL.
+### Medium
+- **Thieu env contract day du**
+  - FE README va env su dung thuc te chua dong bo 100%.
+  - Can `.env.example` + runtime validation fail-fast.
 
-### 4.4 Quan ly domain
-- Tai danh sach domain: `GET /api/domain/list`.
-- Tai chi tiet 1 domain theo `slug`: `GET /api/domain/[slug]`.
-- Chon domain tren giao dien va hien thi thong tin theo tab.
+- **Validation schema chua dong nhat**
+  - Chua co bo parser/schema (zod/io-ts) cho toan bo request body.
 
-### 4.5 Quan ly DNS
-- Tai template DNS: `GET /api/domain/templates`.
-- Chinh sua DNS records/name servers/child DNS/email forwarding.
-- Luu du lieu qua `POST /api/domain/save-tab`.
+- **Thieu error-handling consistency**
+  - Co route sanitize thong diep loi, co route tra loi upstream gan nhu nguyen ban.
 
-### 4.6 Quan ly bao mat domain
-- Tai danh sach goi bao mat: `GET /api/domain/security-packages`.
-- Bat/tat service bao mat, bat/tat 2FA.
-- Doi mat khau tai khoan qua `POST /api/auth/change-password`.
+### Low
+- **Thieu runbook migration/deploy ro rang**
+  - Co script SQL nhung huong dan va ten file schema co diem chua dong nhat.
 
 ---
 
-## 5) Danh sach API noi bo FE
+## 3) CODE QUALITY & ARCHITECTURE
 
-## Auth APIs
-- `POST /api/auth/login`
-  - Input: `username`, `password`
-  - Output: `authToken` + set cookie
-- `POST /api/auth/logout`
-  - Output: `{ ok: true }`, clear cookie
-- `GET /api/auth/viewer`
-  - Output: `{ viewer }`
-- `POST /api/auth/forgot-password`
-  - Input: `email`
-  - Output: `message`
-- `POST /api/auth/change-password`
-  - Input: `oldPassword`, `newPassword`, `confirmPassword`
-  - Output: `message`
+### High
+- **Auth/business logic quan trong chua duoc contract test**
+  - Rat de drift giua V1/V2 GraphQL alias va giua FE-BE.
 
-## Domain APIs
-- `GET /api/domain/list`
-  - Output: `items[]` (id, domain, slug)
-- `GET /api/domain/[slug]`
-  - Output: `item` (DomainConfig)
-- `GET /api/domain/templates`
-  - Output: `items[]` (DNS templates)
-- `GET /api/domain/security-packages`
-  - Output: `items[]` (goi bao mat)
-- `POST /api/domain/save-tab`
-  - Input: `domainId`, `field`, `payload`
-  - Output: `message`
+### Medium
+- **Mot so module backend qua day (doan dai, kho review)**
+  - `domain-panel-relational.php` co resolver/mutation lon, readability thap.
+  - Kho audit va kho sua an toan.
+
+- **Code duplication API contracts**
+  - V1 + V2 alias song song neu khong co test de dang lech hanh vi.
+
+- **Tach layer FE da co, nhung validation/gateway chua dong bo**
+  - `lib/api` + route handler + `lib/server` tot, nhung can harden schema va error map.
+
+### Low
+- **Naming/format chua dong deu o mot so SQL va module**
+  - Anh huong kha nang bao tri dai han.
 
 ---
 
-## 6) Tich hop backend hien tai
+## 4) PERFORMANCE OPTIMIZATION
 
-- Bien moi truong bat buoc: `WP_GRAPHQL_URL` (vi du: `https://configsdns.com/graphql/`).
-- Toan bo nghiep vu domain/auth hien tai di qua WordPress GraphQL:
-  - login mutation
-  - viewer query
-  - forgot password mutation
-  - change password mutation
-  - domain queries/mutations
+### Medium
+- **N+1 query pattern tren backend domain payload**
+  - List domain keo theo nhieu query con cho records/nameservers/childdns/forwards/services.
+  - File: `be-config-dns/themes/dns/modules/domain-panel/domain-panel-relational.php`.
 
-Luu y: FE hien chua goi truc tiep iNET API, ma dang su dung du lieu/logic trung gian tu WordPress.
+- **Template list dang query theo tung template**
+  - Co the gom query mot lan roi group.
 
----
+- **`limit/offset` FE route chua clamp chat**
+  - Co the bi request lon gay load DB.
 
-## 7) Diem can nang cap (uu tien)
+### Low
+- **Rate limit dang in-memory (Map)**
+  - File: `fe-config-dns/src/lib/server/request-security.ts`.
+  - Khong hieu qua khi scale nhieu instance/restart.
 
-### P0 - Bao mat va on dinh
-- Them rate-limit cho API auth (`login`, `forgot-password`, `change-password`).
-- Them CSRF protection cho cac POST route noi bo (double-submit token hoac origin strict check).
-- Chuan hoa logging + request id de trace loi de dang.
-- Tranh expose qua nhieu thong diep loi backend ra UI (sanitize error mapping).
-
-### P1 - Kien truc va maintainability
-- Tach `domain-overview-view.tsx` thanh hooks + feature modules (dang gom nhieu state/logic).
-- Chuan hoa schema validation voi `zod` cho tat ca request body/response parse.
-- Them typed API contracts chung (`DTO`) de tranh drift giua UI va route handler.
-- Tao service layer ro hon cho domain/security thay vi goi truc tiep trong component.
-
-### P1 - UX/Product
-- Them loading skeleton theo tung panel thay vi thong bao text don gian.
-- Them optimistic update co rollback khi save that bai.
-- Them co che retry va thong bao offline/network robust hon.
-
-### P2 - Chat luong va van hanh
-- Bo sung test:
-  - Unit test cho `lib/api/client.ts`, parser domain.
-  - Integration test cho route handlers `api/auth/*`, `api/domain/*`.
-  - E2E cho login -> xem domain -> sua DNS -> save.
-- Bo sung observability (Sentry/Logtail/Datadog) cho FE API routes.
-- Viet lai `README.md` theo nghiep vu du an (hien van la mau mac dinh Next.js).
-
-### P2 - Tich hop iNET (neu can)
-- Tao `INETClient` rieng (server-only) + mapping schema.
-- Toggle provider (`wordpress` | `inet`) qua env.
-- Co co che fallback/read-only neu iNET API loi.
+- **Co the trung lap viewer fetch tren nhieu surface**
+  - Header va cac hook co the goi lap lai API khong can thiet.
 
 ---
 
-## 8) De xuat lo trinh nang cap ngan han
+## 5) SECURITY REVIEW
 
-1. Chuan hoa `README.md` + tai lieu API (1 ngay).
-2. Them validation (`zod`) cho toan bo Route Handlers (1-2 ngay).
-3. Tach `DomainOverviewView` thanh custom hooks/use-cases (2-3 ngay).
-4. Them test cho auth + domain save (2-3 ngay).
-5. Chuan bi lop provider de co the cam iNET API sau nay (2 ngay).
+### Critical
+- **PII + hash password trong repo SQL dumps**
+  - Can coi la su co bao mat.
+  - Hanh dong ngay: rotate secret/password, scrub lich su, danh gia impact.
+
+### High
+- **OAuth CSRF/state chua vung**
+  - Can state signed + nonce luu server-side + verify callback.
+
+- **Google/Zalo auth verification BE chua day du**
+  - Bat buoc verify issuer/audience/expiry + token introspection dung chuan.
+
+- **CCCD upload nhay cam**
+  - MIME trust client + luu o uploads cong khai.
+  - File: `be-config-dns/themes/dns/modules/cccd/cccd-graphql.php`.
+  - Can private storage + content sniffing + signed URL/time-limited access.
+
+- **Du lieu mat khau legacy/predictable**
+  - Script co mat khau default de doan (`MD5('Domain@123')`).
+  - File: `db/link_domain_users.sql`.
+
+### Medium
+- **GraphQL write gate can tach ro capability**
+  - Tang muc check cho mutation nhay cam.
+
+- **Account/domain enumeration vectors**
+  - Mot so query co the lo ton tai account/domain mapping.
+
+### Low
+- **Middleware bypass theo User-Agent crawler**
+  - Co the bi spoof neu khong co lop bao ve bo sung.
+
+---
+
+## 6) BEST PRACTICES & IMPROVEMENTS
+
+### High-priority recommendations
+- Them validation schema dong bo:
+  - FE route handler: `zod` cho body/query.
+  - BE service: validate type/range/json syntax truoc write.
+- Chuan hoa error model:
+  - `code`, `message`, `requestId`, map loi nhat quan.
+- Bo sung permission policy ro rang:
+  - Tách read/write capability.
+  - Object-level ACL bat buoc cho domain/order.
+
+### Medium-priority recommendations
+- Refactor backend module lon:
+  - Tach resolver -> service -> repository theo domain nho hon.
+- Add structured logging:
+  - Co correlation id xuyen FE->BE.
+- Add contract docs:
+  - OpenAPI/GraphQL examples + changelog V1/V2.
+
+### Code pattern goi y (ngan)
+```ts
+const BodySchema = z.object({
+  order_id: z.number().int().positive(),
+  title: z.string().max(255).optional(),
+  total: z.number().nonnegative().optional(),
+});
+```
+
+---
+
+## 7) DEVOPS & DEPLOYMENT
+
+### High
+- **Chua co CI/CD repo-level cho app chinh**
+  - Can pipeline lint/typecheck/test/build + gate merge.
+- **Chua co deploy promotion model**
+  - Can dev/staging/prod + rollback runbook.
+- **Chua co docker/runtime definition cho FE/BE app chinh**
+  - Can mo ta cach dong goi va deploy lap lai duoc.
+
+### Medium
+- **Thieu health/readiness/metrics endpoint**
+  - Can bo chi so RED + alert cho auth failure/upstream GraphQL error.
+- **Dependency governance chua day du**
+  - Them SCA/audit trong CI.
+
+### Low
+- **Readme van hanh chua day du**
+  - Can bo sung setup env, migration order, release checklist.
+
+---
+
+## 8) TESTING
+
+### High
+- **Missing test coverage cho auth + permission + mutation**
+  - Unit:
+    - `api/client` retry/error map
+    - parser/validator
+  - Integration:
+    - FE route handlers (`auth`, `domain`, `customer-data`)
+    - BE GraphQL resolvers + authorization checks
+  - E2E:
+    - Login -> domain list -> save tab -> verify persisted
+    - Customer data CRUD (`my-user-info`, `order_contact`, `order_item`)
+    - OAuth callback hardening cases (state mismatch, nonce mismatch)
+
+### Medium
+- **Performance/security regression tests**
+  - Test clamp `limit/offset`, rate-limit behavior, malformed payload rejection.
+
+---
+
+## PRIORITY ACTION PLAN (de xuat)
+
+### 0-48h (Incident & hardening)
+1. Go bo SQL dump nhay cam khoi repository; neu da lo thi scrub lich su Git va rotate toan bo thong tin bi anh huong (password, token, API key).
+2. Tam thoi khoa hoac gioi han cac flow auth rui ro cao; bo sung xac minh server-side day du cho Zalo/Google (issuer, audience, expiry, signature) truoc khi cap token noi bo.
+3. Bat buoc OAuth `state` + `nonce` co chu ky HMAC va rang buoc theo session cookie; callback phai tu choi state/nonce sai, het han, hoac bi replay.
+
+### Tuan 1
+1. Them zod validation cho toan bo FE route handlers.
+2. Tighten GraphQL write permission + audit object ACL.
+3. Clamp `limit/offset` + chuan hoa error response.
+
+### Tuan 2
+1. Thiet lap CI pipeline full cho FE/BE.
+2. Bo sung test integration + e2e cho flow quan trong.
+3. Refactor cac module backend lon co rui ro cao.
+
+### Tuan 3+
+1. Chuyen rate-limit sang shared store (Redis/Upstash).
+2. Bo sung metrics/alerts/runbook production.
+3. Toi uu query N+1 va indexing cho bang customer-data.
 

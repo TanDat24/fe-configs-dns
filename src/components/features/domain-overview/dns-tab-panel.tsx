@@ -149,7 +149,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
   return (
     <div className="flex min-h-[min(70vh,560px)] flex-col bg-white lg:flex-row">
       <aside className="shrink-0 border-b border-zinc-200 lg:w-60 lg:border-b-0">
-        <nav className="flex flex-col gap-0.5 p-3 lg:p-4" aria-label="Menu DNS">
+        <nav className="flex flex-col gap-0.5 py-4 " aria-label="Menu DNS">
           {SIDEBAR_ITEMS.map((label, index) => (
             <button
               key={label}

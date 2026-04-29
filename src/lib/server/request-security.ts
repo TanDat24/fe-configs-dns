@@ -68,7 +68,13 @@ export function logApiError(
 
 export function sanitizeApiMessage(status: number, fallback: string): string {
   if (status >= 500) return "He thong tam thoi gian doan. Vui long thu lai sau.";
-  if (status === 401) return "Ban can dang nhap de tiep tuc.";
+  if (status === 401) {
+    // Khong ghi de thong bao loi cu the tu GraphQL (sai mat khau, ten mien, v.v.).
+    if (fallback && !fallback.toLowerCase().includes("dang nhap that bai")) {
+      return fallback;
+    }
+    return "Ban can dang nhap de tiep tuc.";
+  }
   if (status === 403) return "Yeu cau bi tu choi.";
   return fallback;
 }

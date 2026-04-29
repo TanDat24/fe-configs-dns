@@ -1,11 +1,16 @@
 ﻿"use client";
 
 import { DnsTabPanel } from "./dns-tab-panel";
-import { DomainSubnav, type DomainTabId } from "./domain-subnav";
+import { DOMAIN_TAB_IDS, DomainSubnav, type DomainTabId } from "./domain-subnav";
 import { OverviewTongQuanPanel } from "./overview-tong-quan-panel";
 import { SecurityTabPanel } from "./security-tab-panel";
 import { useEffect, useState } from "react";
 import { useDomainOverview } from "@/hooks";
+import { useSearchParams } from "next/navigation";
+import ContactsPage from "@/app/(main)/contacts/page";
+import BillingOrdersPage from "@/app/(main)/billing-orders/page";
+import VerificationPage from "@/app/(main)/verification/page";
+import SupportTicketsPage from "@/app/(main)/support-tickets/page";
 
 function PanelSkeleton({ rows = 6 }: { rows?: number }) {
   return (
@@ -108,8 +113,18 @@ function EmptyDomainsState() {
   );
 }
 
-export function DomainOverviewView() {
-  const [tab, setTab] = useState<DomainTabId>("overview");
+type DomainOverviewViewProps = {
+  initialTab?: DomainTabId;
+};
+
+export function DomainOverviewView({ initialTab = "overview" }: DomainOverviewViewProps) {
+  const searchParams = useSearchParams();
+  const tabFromQuery = searchParams.get("tab");
+  const tab: DomainTabId =
+    tabFromQuery && (DOMAIN_TAB_IDS as readonly string[]).includes(tabFromQuery)
+      ? (tabFromQuery as DomainTabId)
+      : initialTab;
+
   const {
     domainData,
     domains,
@@ -142,24 +157,27 @@ export function DomainOverviewView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col font-sans">
-      <div className="mb-2 flex items-center gap-2 px-1">
-        <span className="text-sm text-zinc-600">Tên miền:</span>
-        <select
-          value={selectedSlug}
-          onChange={(e) => setSelectedSlug(e.target.value)}
-          className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-        >
-          {domains.map((d) => (
-            <option key={d.id} value={d.slug}>{d.domain}</option>
-          ))}
-        </select>
-      </div>
+      {domains.length > 0 ? (
+        <div className="mb-2 flex items-center gap-2 py-2">
+          <span className="text-sm text-zinc-600">Tên miền:</span>
+          <select
+            value={selectedSlug}
+            onChange={(e) => setSelectedSlug(e.target.value)}
+            className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+          >
+            {domains.map((d) => (
+              <option key={d.id} value={d.slug}>
+                {d.domain}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
 
       <div className="overflow-hidden rounded-lg bg-white">
         <DomainSubnav
           domainName={domainData?.domain || defaultDomainName}
           activeTab={tab}
-          onTabChange={setTab}
         />
 
         <OfflineHint />
@@ -177,15 +195,7 @@ export function DomainOverviewView() {
         {tab === "overview" && domainData ? (
           <div className="bg-white">
             <OverviewTongQuanPanel
-              key={`overview-${selectedSlug}-${JSON.stringify({
-                owner_name: domainData.owner_name,
-                owner_address: domainData.owner_address,
-                owner_phone: domainData.owner_phone,
-                owner_email: domainData.owner_email,
-                owner_postcode: domainData.owner_postcode,
-                security_services_json: domainData.security_services_json,
-                two_factor_enabled: domainData.two_factor_enabled,
-              })}`}
+              key={`overview-${selectedSlug}`}
               data={domainData}
               onSaveOverview={saveOverview}
               saving={savingOverview}
@@ -195,12 +205,7 @@ export function DomainOverviewView() {
 
         {tab === "dns" && domainData ? (
           <DnsTabPanel
-            key={`dns-${selectedSlug}-${JSON.stringify({
-              dns_records_json: domainData.dns_records_json,
-              name_servers_json: domainData.name_servers_json,
-              child_dns_json: domainData.child_dns_json,
-              email_forwards_json: domainData.email_forwards_json,
-            })}`}
+            key={`dns-${selectedSlug}`}
             data={domainData}
             templates={templates}
             onSaveTab={saveTab}
@@ -210,18 +215,20 @@ export function DomainOverviewView() {
 
         {tab === "security" && domainData ? (
           <SecurityTabPanel
-            key={`sec-${selectedSlug}-${JSON.stringify({
-              security_services_json: domainData.security_services_json,
-              two_factor_enabled: domainData.two_factor_enabled,
-            })}`}
+            key={`sec-${selectedSlug}`}
             data={domainData}
-              packages={securityPackages}
+            packages={securityPackages}
             onSaveSecurityServices={saveSecurityServices}
             onSaveTwoFactor={saveTwoFactor}
-              onChangePassword={handleChangePassword}
+            onChangePassword={handleChangePassword}
             saving={savingField === "security_services_json"}
           />
         ) : null}
+
+        {tab === "contacts" ? <ContactsPage /> : null}
+        {tab === "billing-orders" ? <BillingOrdersPage /> : null}
+        {tab === "verification" ? <VerificationPage /> : null}
+        {tab === "support-tickets" ? <SupportTicketsPage /> : null}
       </div>
     </div>
   );

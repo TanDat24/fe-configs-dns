@@ -13,7 +13,10 @@ import {
   verifySameOriginCsrf,
 } from "@/lib/server/request-security";
 import { loginDomainSchema, parseBodyOrThrow } from "@/lib/server/validators";
-import { wpGraphqlLoginWithDomain } from "@/lib/server/wp-login-domain";
+import {
+  wpCheckDomainExists,
+  wpGraphqlLoginWithDomain,
+} from "@/lib/server/wp-login-domain";
 
 const AUTH_COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 7;
 
@@ -61,6 +64,31 @@ export async function POST(request: Request) {
       400,
       requestId,
     );
+  }
+
+  if (!payload.password) {
+    const checkResult = await wpCheckDomainExists(endpoint, payload.domain);
+    if (!checkResult.ok) {
+      logApiError(requestId, "/api/auth/login-domain", checkResult.message, {
+        status: checkResult.status,
+      });
+      return errorResponse(
+        sanitizeApiMessage(checkResult.status, checkResult.message || "Khong kiem tra duoc ten mien."),
+        checkResult.status,
+        requestId,
+      );
+    }
+
+    if (!checkResult.domainExists) {
+      return errorResponse("Ten mien khong ton tai trong he thong.", 404, requestId);
+    }
+
+    const checkResponse: LoginDomainResponseDto = {
+      domainExists: true,
+      domain: payload.domain,
+      message: "Ten mien hop le. Vui long nhap mat khau.",
+    };
+    return NextResponse.json(checkResponse);
   }
 
   const result = await wpGraphqlLoginWithDomain(

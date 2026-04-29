@@ -40,11 +40,23 @@ export const loginDomainSchema = z.object({
       /^(?:https?:\/\/)?(?:www\.)?[a-z0-9][a-z0-9.\-]*\.[a-z]{2,}(?:\/.*)?$/i,
       "Ten mien khong hop le.",
     ),
-  password: z.string().min(1, "Vui long nhap mat khau."),
+  password: z.string().min(1, "Vui long nhap mat khau.").optional(),
 });
 
 export const forgotPasswordSchema = z.object({
   email: z.string().trim().min(1, "Vui long nhap email hoac ten nguoi dung."),
+});
+
+export const forgotPasswordDomainSchema = z.object({
+  domain: z
+    .string()
+    .trim()
+    .min(3, "Vui long nhap ten mien.")
+    .regex(
+      /^(?:https?:\/\/)?(?:www\.)?[a-z0-9][a-z0-9.\-]*\.[a-z]{2,}(?:\/.*)?$/i,
+      "Ten mien khong hop le.",
+    ),
+  email: z.string().trim().email("Email khong hop le."),
 });
 
 export const registerSchema = z

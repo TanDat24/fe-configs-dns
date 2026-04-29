@@ -2,8 +2,9 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { WP_AUTH_COOKIE_NAME, wpAuthCookieOptions } from "@/lib/auth-cookie";
 import { getPublicOrigin } from "@/lib/server/public-origin";
-import { wpLoginWithZalo } from "@/lib/server/wp-register";
-import { ZALO_PKCE_COOKIE } from "../route";
+import { wpLoginWithZalo, wpSocialAccountExists } from "@/lib/server/wp-register";
+import { verifySignedOAuthState } from "@/lib/server/oauth-state";
+import { ZALO_NONCE_COOKIE, ZALO_PKCE_COOKIE } from "../route";
 
 const AUTH_COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 7;
 
@@ -111,20 +112,6 @@ async function fetchZaloUser(
   }
 }
 
-function parseNextFromState(state: string | null): string {
-  if (!state) return "/";
-  try {
-    const parsed = JSON.parse(Buffer.from(state, "base64url").toString()) as {
-      next?: string;
-    };
-    const next = (parsed.next ?? "/").trim();
-    if (!next.startsWith("/") || next.startsWith("//") || next.includes("\\")) return "/";
-    return next;
-  } catch {
-    return "/";
-  }
-}
-
 export async function GET(request: Request) {
   const origin = getPublicOrigin(request);
   const searchParams = new URL(request.url).searchParams;
@@ -132,8 +119,6 @@ export async function GET(request: Request) {
   const state = searchParams.get("state");
   const errorParam = searchParams.get("error") ?? searchParams.get("error_code");
   const errorDesc = searchParams.get("error_description") ?? searchParams.get("error_reason");
-  const nextPath = parseNextFromState(state);
-
   const logoutWithError = (err: string) =>
     NextResponse.redirect(`${origin}/logout?error=${err}`);
 
@@ -147,6 +132,13 @@ export async function GET(request: Request) {
     return logoutWithError("zalo_cancelled");
   }
 
+  const verifiedState = await verifySignedOAuthState(state, "zalo");
+  if (!verifiedState.ok) {
+    console.error("[zalo callback] invalid signed state");
+    return logoutWithError("zalo_state");
+  }
+  const nextPath = verifiedState.nextPath;
+
   const endpoint = process.env.WP_GRAPHQL_URL;
   if (!endpoint) {
     console.error("[zalo callback] missing WP_GRAPHQL_URL");
@@ -155,11 +147,13 @@ export async function GET(request: Request) {
 
   const cookieStore = await cookies();
   const verifier = cookieStore.get(ZALO_PKCE_COOKIE)?.value;
+  const nonce = cookieStore.get(ZALO_NONCE_COOKIE)?.value;
   // Luon clear verifier cookie sau khi dung (one-shot)
   cookieStore.delete(ZALO_PKCE_COOKIE);
+  cookieStore.delete(ZALO_NONCE_COOKIE);
 
-  if (!verifier) {
-    console.error("[zalo callback] missing PKCE verifier cookie");
+  if (!verifier || !nonce || nonce !== verifiedState.nonce) {
+    console.error("[zalo callback] missing or mismatched PKCE/nonce cookie");
     return logoutWithError("zalo_pkce");
   }
 
@@ -168,6 +162,15 @@ export async function GET(request: Request) {
 
   const profile = await fetchZaloUser(accessToken);
   if (!profile) return logoutWithError("zalo_profile");
+
+  const exists = await wpSocialAccountExists(endpoint, { provider: "zalo", zaloId: profile.id });
+  if ((!exists.ok || !exists.exists) && !verifiedState.consent) {
+    const back = new URL("/logout", origin);
+    back.searchParams.set("error", "consent_required_zalo");
+    back.searchParams.set("consent_provider", "zalo");
+    if (nextPath !== "/") back.searchParams.set("next", nextPath);
+    return NextResponse.redirect(back);
+  }
 
   const result = await wpLoginWithZalo(endpoint, {
     zaloId: profile.id,

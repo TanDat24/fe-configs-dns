@@ -1,9 +1,9 @@
-import { DomainOverviewView } from "@/components/features/domain-overview";
+import { DomainOverviewView, type DomainTabId } from "@/components/features/domain-overview";
 
-export function HomeView() {
+export function HomeView({ initialTab }: { initialTab?: DomainTabId } = {}) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <DomainOverviewView />
+      <DomainOverviewView initialTab={initialTab} />
     </div>
   );
 }

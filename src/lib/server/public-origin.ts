@@ -11,8 +11,14 @@ import "server-only";
  * Co the override toan bo bang env `NEXT_PUBLIC_SITE_URL` (tien cho deploy co domain co dinh).
  */
 export function getPublicOrigin(request: Request): string {
+  const requestOrigin = new URL(request.url).origin;
+  const isLocalRequest =
+    requestOrigin.includes("://localhost") ||
+    requestOrigin.includes("://127.0.0.1") ||
+    requestOrigin.includes("://0.0.0.0");
+
   const override = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (override) {
+  if (override && !isLocalRequest) {
     return override.replace(/\/$/, "");
   }
 
@@ -34,5 +40,5 @@ export function getPublicOrigin(request: Request): string {
     return `${proto}://${host}`;
   }
 
-  return new URL(request.url).origin;
+  return requestOrigin;
 }

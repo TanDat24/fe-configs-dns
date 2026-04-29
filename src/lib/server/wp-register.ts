@@ -24,6 +24,14 @@ const LOGIN_WITH_ZALO_MUTATION = `
   }
 `;
 
+const SOCIAL_ACCOUNT_EXISTS_MUTATION = `
+  mutation SocialAccountExists($provider: String!, $email: String, $zaloId: String) {
+    socialAccountExists(input: { provider: $provider, email: $email, zaloId: $zaloId }) {
+      exists
+    }
+  }
+`;
+
 type RegisterResponse = {
   data?: { registerDnsUser?: { message?: string | null } | null };
   errors?: Array<{ message: string }>;
@@ -36,6 +44,11 @@ type GoogleLoginResponse = {
 
 type ZaloLoginResponse = {
   data?: { loginWithZalo?: { authToken?: string | null } | null };
+  errors?: Array<{ message: string }>;
+};
+
+type SocialExistsResponse = {
+  data?: { socialAccountExists?: { exists?: boolean | null } | null };
   errors?: Array<{ message: string }>;
 };
 
@@ -147,6 +160,35 @@ export async function wpLoginWithZalo(
     }
 
     return { ok: true, authToken };
+  } catch {
+    return { ok: false, status: 502, message: "Khong ket noi duoc may chu WordPress." };
+  }
+}
+
+export async function wpSocialAccountExists(
+  endpoint: string,
+  input: { provider: "google" | "zalo"; email?: string; zaloId?: string },
+): Promise<{ ok: true; exists: boolean } | { ok: false; status: number; message: string }> {
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: SOCIAL_ACCOUNT_EXISTS_MUTATION,
+        variables: {
+          provider: input.provider,
+          email: input.email ?? null,
+          zaloId: input.zaloId ?? null,
+        },
+      }),
+      cache: "no-store",
+    });
+
+    const json = await parseJson<SocialExistsResponse>(res);
+    if (json.errors?.length) {
+      return { ok: false, status: 400, message: json.errors[0]?.message ?? "Khong the kiem tra tai khoan." };
+    }
+    return { ok: true, exists: json.data?.socialAccountExists?.exists === true };
   } catch {
     return { ok: false, status: 502, message: "Khong ket noi duoc may chu WordPress." };
   }

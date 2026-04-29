@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { WP_AUTH_COOKIE_NAME, wpAuthCookieOptions } from "@/lib/auth-cookie";
 import { getPublicOrigin } from "@/lib/server/public-origin";
-import { wpLoginWithGoogle } from "@/lib/server/wp-register";
+import { wpLoginWithGoogle, wpSocialAccountExists } from "@/lib/server/wp-register";
+import { verifySignedOAuthState } from "@/lib/server/oauth-state";
 
 const AUTH_COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 7;
 
@@ -35,15 +36,13 @@ async function exchangeCodeForIdToken(
   }
 }
 
-function parseNextFromState(state: string | null): string {
-  if (!state) return "/";
+function decodeJwtPayload(idToken: string): Record<string, unknown> | null {
   try {
-    const parsed = JSON.parse(Buffer.from(state, "base64url").toString()) as { next?: string };
-    const next = (parsed.next ?? "/").trim();
-    if (!next.startsWith("/") || next.startsWith("//") || next.includes("\\")) return "/";
-    return next;
+    const parts = idToken.split(".");
+    if (parts.length < 2) return null;
+    return JSON.parse(Buffer.from(parts[1], "base64url").toString()) as Record<string, unknown>;
   } catch {
-    return "/";
+    return null;
   }
 }
 
@@ -52,11 +51,14 @@ export async function GET(request: Request) {
   const sp = new URL(request.url).searchParams;
   const code = sp.get("code");
   const state = sp.get("state");
-  const nextPath = parseNextFromState(state);
   const logoutWithError = (err: string) =>
     NextResponse.redirect(`${origin}/logout?error=${err}`);
 
   if (!code) return logoutWithError("google_cancelled");
+
+  const verifiedState = await verifySignedOAuthState(state, "google");
+  if (!verifiedState.ok) return logoutWithError("google_state");
+  const nextPath = verifiedState.nextPath;
 
   const endpoint = process.env.WP_GRAPHQL_URL;
   if (!endpoint) return logoutWithError("config");
@@ -64,6 +66,22 @@ export async function GET(request: Request) {
   const redirectUri = `${origin}/api/auth/google/callback`;
   const idToken = await exchangeCodeForIdToken(code, redirectUri);
   if (!idToken) return logoutWithError("google_token");
+
+  const payload = decodeJwtPayload(idToken);
+  const nonce = typeof payload?.nonce === "string" ? payload.nonce : "";
+  if (!nonce || nonce !== verifiedState.nonce) return logoutWithError("google_nonce");
+
+  const email = typeof payload?.email === "string" ? payload.email : "";
+  if (email !== "") {
+    const exists = await wpSocialAccountExists(endpoint, { provider: "google", email });
+    if ((!exists.ok || !exists.exists) && !verifiedState.consent) {
+      const back = new URL("/logout", origin);
+      back.searchParams.set("error", "consent_required_google");
+      back.searchParams.set("consent_provider", "google");
+      if (nextPath !== "/") back.searchParams.set("next", nextPath);
+      return NextResponse.redirect(back);
+    }
+  }
 
   const result = await wpLoginWithGoogle(endpoint, idToken);
   if (!result.ok) return logoutWithError("google_login");

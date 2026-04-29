@@ -196,16 +196,12 @@ export function SecurityTabPanel({
 
   return (
     <div className="bg-white">
-      <div className="border-b border-zinc-200 px-4 py-4 sm:px-6">
-        <h1 className="text-xl font-bold text-zinc-900 sm:text-2xl">
-          Cài đặt bảo mật tên miền
-        </h1>
-      </div>
+      
 
       <div className="flex min-h-[min(60vh,480px)] flex-col lg:flex-row">
         <aside className="shrink-0 border-b border-zinc-200 lg:w-64 lg:border-b-0 lg:border-r">
           <nav
-            className="flex flex-col gap-0.5 p-3 lg:p-4"
+            className="flex flex-col gap-0.5 py-4 pr-4"
             aria-label="Cài đặt bảo mật"
           >
             {SIDEBAR_ITEMS.map((label, index) => (
@@ -224,7 +220,7 @@ export function SecurityTabPanel({
               </button>
             ))}
           </nav>
-          <div className="border-t border-zinc-200 px-4 py-3 lg:mt-2">
+          <div className="border-t border-zinc-200 py-4 pr-3 lg:mt-2">
             <div className="flex items-center gap-2 text-sm">
               <ShieldIcon className="h-5 w-5 text-teal-600" />
               <span className="font-medium text-zinc-900">

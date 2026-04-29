@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
 import { login, loginByDomain, register } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
 
@@ -11,6 +11,8 @@ const BTN_TEAL = "bg-[#A8DADC]";
 
 type Tab = "login" | "register";
 type LoginMode = "account" | "domain";
+const DOMAIN_MAX_FAILED_ATTEMPTS = 3;
+const DOMAIN_LOCK_MS = 30_000;
 
 function postLoginPath(nextParam: string | null): string {
   if (!nextParam) return "/";
@@ -72,20 +74,26 @@ function SocialButton({
   icon,
   label,
   brand,
+  disabled = false,
 }: {
   href: string;
   icon: React.ReactNode;
   label: string;
   brand?: "google" | "zalo";
+  disabled?: boolean;
 }) {
   return (
     <a
       href={href}
-      className={`flex h-10 items-center justify-center gap-2 rounded-md border text-xs font-medium transition active:scale-[0.98] ${
+      aria-disabled={disabled}
+      onClick={(e) => {
+        if (disabled) e.preventDefault();
+      }}
+      className={`flex h-10 items-center justify-center gap-2 rounded-md border text-xs font-medium transition ${
         brand === "zalo"
           ? "border-[#0068FF]/20 bg-[#0068FF]/5 text-[#0068FF] hover:bg-[#0068FF]/10"
           : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-      }`}
+      } ${disabled ? "pointer-events-none cursor-not-allowed opacity-50" : "active:scale-[0.98]"}`}
     >
       {icon}
       <span>{label}</span>
@@ -93,11 +101,13 @@ function SocialButton({
   );
 }
 
-function Alert({ type, children }: { type: "error" | "success"; children: React.ReactNode }) {
+function Alert({ type, children }: { type: "error" | "success" | "warning"; children: React.ReactNode }) {
   const styles =
     type === "error"
       ? "border-red-200 bg-red-50 text-red-700"
-      : "border-emerald-200 bg-emerald-50 text-emerald-800";
+      : type === "warning"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : "border-emerald-200 bg-emerald-50 text-emerald-800";
   return (
     <p
       className={`rounded-md border px-3 py-2 text-[13px] ${styles}`}
@@ -166,8 +176,8 @@ function LoginModeToggle({
   disabled: boolean;
 }) {
   const modes: Array<{ id: LoginMode; label: string }> = [
-    { id: "account", label: "Tài khoản" },
     { id: "domain", label: "Tên miền" },
+    { id: "account", label: "Tài khoản" },
   ];
   return (
     <div className="flex gap-1 rounded-md bg-zinc-100 p-1">
@@ -179,7 +189,7 @@ function LoginModeToggle({
           onClick={() => onChange(m.id)}
           className={`flex-1 rounded py-1.5 text-xs font-medium transition ${
             mode === m.id
-              ? "bg-white text-zinc-900 shadow-sm"
+              ? "bg-orange-500 text-white shadow-sm"
               : "text-zinc-500 hover:text-zinc-700"
           } disabled:opacity-60`}
         >
@@ -192,20 +202,72 @@ function LoginModeToggle({
 
 function LoginForm({ nextPath, onSuccess }: { nextPath: string; onSuccess: () => void }) {
   const router = useRouter();
-  const [mode, setMode] = useState<LoginMode>("account");
+  const [mode, setMode] = useState<LoginMode>("domain");
   const [username, setUsername] = useState("");
   const [domain, setDomain] = useState("");
   const [password, setPassword] = useState("");
+  const [domainChecked, setDomainChecked] = useState(false);
+  const [domainWrongAttempts, setDomainWrongAttempts] = useState(0);
+  const [domainLockUntil, setDomainLockUntil] = useState<number | null>(null);
+  const [lockTick, setLockTick] = useState(Date.now());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const lockRemainingSec = useMemo(() => {
+    if (!domainLockUntil) return 0;
+    return Math.max(0, Math.ceil((domainLockUntil - lockTick) / 1000));
+  }, [domainLockUntil, lockTick]);
+
+  const isDomainLocked = mode === "domain" && lockRemainingSec > 0;
+  const shouldShowForgotDomain =
+    mode === "domain" &&
+    domainChecked &&
+    (domainWrongAttempts >= DOMAIN_MAX_FAILED_ATTEMPTS || isDomainLocked);
+
+  useEffect(() => {
+    if (!domainLockUntil) return;
+    if (Date.now() >= domainLockUntil) {
+      setDomainLockUntil(null);
+      setDomainWrongAttempts(0);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setLockTick(Date.now());
+      if (Date.now() >= domainLockUntil) {
+        setDomainLockUntil(null);
+        setDomainWrongAttempts(0);
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [domainLockUntil]);
+
+  function isWrongDomainPasswordError(message: string): boolean {
+    return /(mat khau|mật khẩu|password).*(sai|khong dung|không đúng|invalid|incorrect|wrong)/i.test(
+      message,
+    );
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (isDomainLocked) {
+      setError(`Ban thu lai sau ${lockRemainingSec} giay.`);
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
       if (mode === "domain") {
-        await loginByDomain({ domain, password });
+        if (!domainChecked) {
+          await loginByDomain({ domain });
+          setDomainChecked(true);
+          return;
+        }
+        const result = await loginByDomain({ domain, password });
+        if (!result.authToken) {
+          throw new ApiError("Không nhận được token.", 500, result);
+        }
+        setDomainWrongAttempts(0);
+        setDomainLockUntil(null);
       } else {
         await login({ username, password });
       }
@@ -213,7 +275,21 @@ function LoginForm({ nextPath, onSuccess }: { nextPath: string; onSuccess: () =>
       router.refresh();
       onSuccess();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Lỗi mạng. Thử lại sau.");
+      const message = err instanceof ApiError ? err.message : "Lỗi mạng. Thử lại sau.";
+      if (mode === "domain" && domainChecked && err instanceof ApiError && isWrongDomainPasswordError(message)) {
+        const nextAttempts = domainWrongAttempts + 1;
+        setDomainWrongAttempts(nextAttempts);
+        if (nextAttempts >= DOMAIN_MAX_FAILED_ATTEMPTS) {
+          const lockTo = Date.now() + DOMAIN_LOCK_MS;
+          setDomainLockUntil(lockTo);
+          setLockTick(Date.now());
+          setError("Ban nhap sai mat khau qua 3 lan. Vui long thu lai sau 30 giay.");
+        } else {
+          setError(message);
+        }
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -224,6 +300,9 @@ function LoginForm({ nextPath, onSuccess }: { nextPath: string; onSuccess: () =>
     setMode(next);
     setError(null);
     setPassword("");
+    setDomainChecked(false);
+    setDomainWrongAttempts(0);
+    setDomainLockUntil(null);
   }
 
   return (
@@ -243,27 +322,52 @@ function LoginForm({ nextPath, onSuccess }: { nextPath: string; onSuccess: () =>
         <Field
           id="auth-domain"
           value={domain}
-          onChange={setDomain}
+          onChange={(value) => {
+            setDomain(value);
+            setDomainChecked(false);
+            setPassword("");
+            setError(null);
+            setDomainWrongAttempts(0);
+            setDomainLockUntil(null);
+          }}
           disabled={loading}
           autoComplete="off"
           placeholder="example.com"
         />
       )}
-      <Field
-        id="auth-password"
-        type="password"
-        value={password}
-        onChange={setPassword}
-        disabled={loading}
-        autoComplete="current-password"
-        placeholder="Mật khẩu"
-      />
+      {(mode === "account" || domainChecked) && (
+        <Field
+          id="auth-password"
+          type="password"
+          value={password}
+          onChange={setPassword}
+          disabled={loading}
+          autoComplete="current-password"
+          placeholder="Mật khẩu"
+        />
+      )}
+      {shouldShowForgotDomain && (
+        <div className="text-right text-xs">
+          <Link
+            href="/forgot-password-domain"
+            className="text-orange-600 underline underline-offset-2 hover:text-orange-700"
+          >
+            Bạn quên mật khẩu tên miền?
+          </Link>
+        </div>
+      )}
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || isDomainLocked}
         className={`h-10 w-full rounded-md ${BTN_TEAL} text-sm font-semibold text-zinc-900 transition hover:opacity-90 disabled:opacity-60`}
       >
-        {loading ? "Đang đăng nhập…" : "Đăng nhập"}
+        {loading
+          ? "Đang xử lý…"
+          : isDomainLocked
+            ? `Thu lai sau ${lockRemainingSec}s`
+            : mode === "domain" && !domainChecked
+              ? "Tiếp tục"
+              : "Đăng nhập"}
       </button>
     </form>
   );
@@ -360,9 +464,14 @@ function LogoutPageViewInner() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") ?? "/";
   const oauthError = searchParams.get("error");
+  const consentProvider = searchParams.get("consent_provider");
 
   const [tab, setTab] = useState<Tab>("login");
   const [registerSuccess, setRegisterSuccess] = useState(false);
+  const [allowSaveThirdPartyInfo, setAllowSaveThirdPartyInfo] = useState(false);
+  const needsGoogleConsent = consentProvider === "google";
+  const needsZaloConsent = consentProvider === "zalo";
+  const needsConsent = needsGoogleConsent || needsZaloConsent;
 
   const oauthErrorMsg: Record<string, string> = {
     google_cancelled: "Bạn đã huỷ đăng nhập Google.",
@@ -373,6 +482,8 @@ function LogoutPageViewInner() {
     zalo_token: "Không thể xác thực tài khoản Zalo. Thử lại.",
     zalo_login: "Đăng nhập Zalo thất bại. Thử lại hoặc dùng tài khoản thường.",
     zalo_config: "Tính năng đăng nhập Zalo chưa được cấu hình.",
+    consent_required_google: "Tài khoản Google này chưa có trong hệ thống. Vui lòng đồng ý lưu thông tin để tiếp tục.",
+    consent_required_zalo: "Tài khoản Zalo này chưa có trong hệ thống. Vui lòng đồng ý lưu thông tin để tiếp tục.",
     config: "Tính năng đăng nhập bên thứ ba chưa được cấu hình.",
   };
 
@@ -409,7 +520,9 @@ function LogoutPageViewInner() {
 
           {oauthError && oauthErrorMsg[oauthError] && (
             <div className="mb-3">
-              <Alert type="error">{oauthErrorMsg[oauthError]}</Alert>
+              <Alert type={oauthError.startsWith("consent_required_") ? "warning" : "error"}>
+                {oauthErrorMsg[oauthError]}
+              </Alert>
             </div>
           )}
 
@@ -441,17 +554,49 @@ function LogoutPageViewInner() {
             <div className="h-px flex-1 bg-zinc-200" />
           </div>
 
+          {needsConsent && (
+            <label className="mb-3 flex items-start gap-2 text-[12px] text-zinc-600">
+              <input
+                type="checkbox"
+                checked={allowSaveThirdPartyInfo}
+                onChange={(e) => setAllowSaveThirdPartyInfo(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-orange-500 focus:ring-orange-500"
+              />
+              <span>
+                Tôi đồng ý{" "}
+                <Link
+                  href="/service-policy"
+                  target="_blank"
+                  className="text-blue-600 underline underline-offset-2 hover:text-blue-700"
+                >
+                  lưu và xử lý thông tin cá nhân
+                </Link>{" "}
+                {needsGoogleConsent
+                  ? "từ Google để đăng nhập"
+                  : needsZaloConsent
+                    ? "từ Zalo để đăng nhập"
+                    : "từ Google/Zalo để đăng nhập"}
+              </span>
+            </label>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
             <SocialButton
-              href={`/api/auth/google?next=${encodeURIComponent(nextPath)}`}
+              href={`/api/auth/google?next=${encodeURIComponent(nextPath)}${
+                needsGoogleConsent && allowSaveThirdPartyInfo ? "&consent=1" : ""
+              }`}
               icon={<GoogleIcon />}
               label="Google"
+              disabled={needsGoogleConsent && !allowSaveThirdPartyInfo}
             />
             <SocialButton
-              href={`/api/auth/zalo?next=${encodeURIComponent(nextPath)}`}
+              href={`/api/auth/zalo?next=${encodeURIComponent(nextPath)}${
+                needsZaloConsent && allowSaveThirdPartyInfo ? "&consent=1" : ""
+              }`}
               icon={<ZaloIcon />}
               label="Zalo"
               brand="zalo"
+              disabled={needsZaloConsent && !allowSaveThirdPartyInfo}
             />
           </div>
 

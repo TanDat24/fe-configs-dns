@@ -1,4 +1,5 @@
 ﻿import { cn } from "@/lib/utils";
+import Link from "next/link";
 import { ProtectionGauge } from "./protection-gauge";
 import type { DomainConfig } from "@/lib/domain-types";
 
@@ -89,7 +90,15 @@ export function DomainSummaryCards({ data }: DomainSummaryCardsProps) {
       </section>
 
       <section className="flex flex-col rounded-lg border border-zinc-200 bg-white p-5">
-        <h2 className="text-base font-semibold text-zinc-900">Hồ sơ</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-zinc-900">Hồ sơ</h2>
+          <Link
+            href="/profile/cccd"
+            className="inline-flex h-8 items-center rounded-md border border-zinc-200 px-3 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+          >
+            Upload CCCD
+          </Link>
+        </div>
         <ul className="mt-4 space-y-3 text-sm">
           <li className="flex items-center justify-between gap-2">
             <span className="text-zinc-700">CCCD chủ sở hữu</span>
