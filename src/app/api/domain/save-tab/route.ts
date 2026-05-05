@@ -101,7 +101,8 @@ export async function POST(request: Request) {
 
   if (!result.ok) {
     logApiError(requestId, "/api/domain/save-tab", result.message, { status: result.status, field });
-    return errorResponse(sanitizeApiMessage(result.status, "Khong the luu du lieu."), result.status, requestId);
+    const message = result.status === 400 ? result.message : sanitizeApiMessage(result.status, "Khong the luu du lieu.");
+    return errorResponse(message, result.status, requestId);
   }
 
   const responseBody: SaveDomainTabResponseDto = { message: result.message };

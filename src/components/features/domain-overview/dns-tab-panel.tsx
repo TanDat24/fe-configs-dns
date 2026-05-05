@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui";
 import type {
   ChildDnsRow,
   DnsRecord,
@@ -112,6 +113,26 @@ function parseCsv(content: string): DnsRecord[] {
   });
 }
 
+function validateDnsRecords(rows: DnsRecord[]): string[] {
+  const errors: string[] = [];
+  rows.forEach((r, i) => {
+    const host = r.host.trim();
+    const value = r.value.trim();
+    if (!host && !value) return;
+    if (!host) errors.push(`Bản ghi ${i + 1}: Host không được để trống`);
+    if (!value) errors.push(`Bản ghi ${i + 1}: Giá trị không được để trống`);
+    if (r.type === "A" && r.value && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.value.trim())) errors.push(`Bản ghi ${i + 1}: Giá trị A phải là IPv4 hợp lệ (VD: 103.57.221.79)`);
+    if (r.type === "AAAA" && r.value && !/^[0-9a-fA-F:]+$/.test(r.value.trim())) errors.push(`Bản ghi ${i + 1}: Giá trị AAAA phải là IPv6 hợp lệ`);
+    if (r.type === "MX" && !r.priority.trim()) errors.push(`Bản ghi ${i + 1}: Ưu tiên MX không được để trống`);
+    if (r.type === "MX" && r.priority && !/^\d+$/.test(r.priority.trim())) errors.push(`Bản ghi ${i + 1}: Ưu tiên MX phải là số nguyên`);
+    if (r.type === "SRV" && !r.priority.trim()) errors.push(`Bản ghi ${i + 1}: Ưu tiên SRV không được để trống`);
+    if (r.type === "SRV" && r.priority && !/^\d+$/.test(r.priority.trim())) errors.push(`Bản ghi ${i + 1}: Ưu tiên SRV phải là số nguyên`);
+    const ttlNum = Number(r.ttl);
+    if (r.ttl && (!Number.isFinite(ttlNum) || ttlNum < 60)) errors.push(`Bản ghi ${i + 1}: TTL tối thiểu 60 giây`);
+  });
+  return errors;
+}
+
 export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabPanelProps) {
   const [activeSidebar, setActiveSidebar] = useState(0);
   const [records, setRecords] = useState<DnsRecord[]>(() => initRecords(data));
@@ -121,6 +142,10 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState<{ type: "ok" | "error"; text: string } | null>(null);
   const [templateId, setTemplateId] = useState<number>(templates[0]?.id ?? 0);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deleteAllLoading, setDeleteAllLoading] = useState(false);
+  const [deleteRecord, setDeleteRecord] = useState<{ index: number; row: DnsRecord } | null>(null);
+  const [deleteRecordLoading, setDeleteRecordLoading] = useState(false);
   const csvInputRef = useRef<HTMLInputElement | null>(null);
 
   const filteredRecords = useMemo(() => {
@@ -144,6 +169,41 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
   function showNotice(type: "ok" | "error", text: string) {
     setNotice({ type, text });
     if (type === "ok") setTimeout(() => setNotice(null), 4000);
+  }
+
+  async function handleDeleteAll() {
+    if (deleteAllLoading) return;
+    const cleared = [{ ...DEFAULT_RECORD }];
+    setDeleteAllLoading(true);
+    try {
+      setRecords(cleared);
+      await onSaveTab("dns_records_json", cleared);
+      showNotice("ok", "Đã xoá tất cả bản ghi và cập nhật dữ liệu.");
+      setDeleteAllOpen(false);
+    } catch (err) {
+      showNotice("error", err instanceof Error ? err.message : "Không cập nhật được dữ liệu sau khi xoá.");
+    } finally {
+      setDeleteAllLoading(false);
+    }
+  }
+
+  async function handleDeleteRecord() {
+    if (!deleteRecord || deleteRecordLoading) return;
+    const prevRecords = [...records];
+    const next = records.filter((_, idx) => idx !== deleteRecord.index);
+    const normalized = next.length ? next : [{ ...DEFAULT_RECORD }];
+    setDeleteRecordLoading(true);
+    setRecords(normalized);
+    try {
+      await onSaveTab("dns_records_json", normalized);
+      showNotice("ok", "Đã xoá bản ghi DNS.");
+      setDeleteRecord(null);
+    } catch (err) {
+      setRecords(prevRecords);
+      showNotice("error", err instanceof Error ? err.message : "Không xoá được bản ghi DNS.");
+    } finally {
+      setDeleteRecordLoading(false);
+    }
   }
 
   return (
@@ -220,16 +280,63 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
               }} />
             </div>
 
-            <div className="relative">
-              <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nhập từ khoá tìm kiếm (host, loại, giá trị...)" className="w-full rounded-md border border-zinc-300 bg-white py-2.5 px-3 text-sm" />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[260px] flex-1">
+                <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nhập từ khoá tìm kiếm (host, loại, giá trị...)" className="w-full rounded-md border border-zinc-300 bg-white py-2.5 px-3 text-sm" />
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                onClick={() => setDeleteAllOpen(true)}
+              >
+                Xoá tất cả
+              </button>
             </div>
+
+            {deleteAllOpen ? (
+              <ConfirmDialog
+                open={deleteAllOpen}
+                title="Xoá tất cả bản ghi DNS?"
+                description="Hành động này sẽ xoá toàn bộ bản ghi hiện có và cập nhật dữ liệu ngay lập tức."
+                confirmLabel="Xoá tất cả"
+                cancelLabel="Huỷ"
+                loading={deleteAllLoading}
+                onConfirm={handleDeleteAll}
+                onCancel={() => setDeleteAllOpen(false)}
+              />
+            ) : null}
+
+            {deleteRecord ? (
+              <ConfirmDialog
+                open={Boolean(deleteRecord)}
+                title="Xoá bản ghi DNS?"
+                description="Hành động này sẽ xoá bản ghi và cập nhật dữ liệu ngay lập tức."
+                confirmLabel="Xoá bản ghi"
+                cancelLabel="Huỷ"
+                loading={deleteRecordLoading}
+                onConfirm={handleDeleteRecord}
+                onCancel={() => setDeleteRecord(null)}
+              >
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <div className="font-semibold">Cảnh báo</div>
+                  <div>Thao tác này không thể hoàn tác sau khi lưu thành công.</div>
+                </div>
+                <div className="mt-3 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700">
+                  <div><span className="font-semibold">Host:</span> {deleteRecord.row.host || "-"}</div>
+                  <div><span className="font-semibold">Loại:</span> {deleteRecord.row.type || "-"}</div>
+                  <div><span className="font-semibold">Giá trị:</span> {deleteRecord.row.value || "-"}</div>
+                  <div><span className="font-semibold">TTL:</span> {deleteRecord.row.ttl || "-"}</div>
+                  <div><span className="font-semibold">Ưu tiên:</span> {deleteRecord.row.priority || "-"}</div>
+                </div>
+              </ConfirmDialog>
+            ) : null}
 
             <div className="overflow-x-auto rounded-lg border border-zinc-200">
               <table className="w-full min-w-[760px] border-collapse text-sm">
                 <thead><tr className="bg-[#dbe8e0]"><th className="border-b border-zinc-200 px-3 py-2.5 text-left">STT</th><th className="border-b border-zinc-200 px-3 py-2.5 text-left">Host</th><th className="border-b border-zinc-200 px-3 py-2.5 text-left">Loại</th><th className="border-b border-zinc-200 px-3 py-2.5 text-left">Giá trị</th><th className="border-b border-zinc-200 px-3 py-2.5 text-left">TTL</th><th className="border-b border-zinc-200 px-3 py-2.5 text-left">Ưu tiên</th><th className="border-b border-zinc-200 px-3 py-2.5 text-left">Thao tác</th></tr></thead>
                 <tbody>
                   {filteredRecords.map((row, index) => (
-                    <tr key={`${index}-${row.host}-${row.type}`}>
+                    <tr key={`row-${index}`}>
                       <td className="border-b border-zinc-200 px-3 py-2">{index + 1}</td>
                       <td className="border-b border-zinc-200 px-2 py-2"><input className={inputCellClass} value={row.host} onChange={(e) => {
                         const srcIndex = records.indexOf(row); if (srcIndex < 0) return;
@@ -238,7 +345,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                       <td className="border-b border-zinc-200 px-2 py-2"><select className={inputCellClass} value={row.type} onChange={(e) => {
                         const srcIndex = records.indexOf(row); if (srcIndex < 0) return;
                         const next = [...records]; next[srcIndex] = { ...next[srcIndex], type: e.target.value }; setRecords(next);
-                      }}><option value="A">A (IP Address)</option><option value="CNAMME">CNAME (Alias)
+                      }}><option value="A">A (IP Address)</option><option value="CNAME">CNAME (Alias)
                       </option><option value="MX">MX (Mail Exchange)</option>
                       <option value="URL Redirect">URL Redirect</option>
                       <option value="Domain Redirect">Domain Redirect</option>
@@ -259,7 +366,40 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                         const srcIndex = records.indexOf(row); if (srcIndex < 0) return;
                         const next = [...records]; next[srcIndex] = { ...next[srcIndex], priority: e.target.value }; setRecords(next);
                       }} /></td>
-                      <td className="border-b border-zinc-200 px-2 py-2"><button type="button" className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50" onClick={() => setRecords((prev) => prev.filter((r) => r !== row))}>Xoá</button></td>
+                      <td className="border-b border-zinc-200 px-2 py-2">
+                        <div className="flex flex-nowrap items-center gap-2">
+                          <button
+                            type="button"
+                            className="whitespace-nowrap rounded-md border border-zinc-300 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
+                            onClick={async () => {
+                              const errors = validateDnsRecords(records);
+                              if (errors.length) {
+                                showNotice("error", errors[0]);
+                                return;
+                              }
+                              try {
+                                await onSaveTab("dns_records_json", records);
+                                showNotice("ok", "Đã cập nhật bản ghi DNS.");
+                              } catch (err) {
+                                showNotice("error", err instanceof Error ? err.message : "Không cập nhật được bản ghi DNS.");
+                              }
+                            }}
+                          >
+                            Cập nhật
+                          </button>
+                          <button
+                            type="button"
+                            className="whitespace-nowrap rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                            onClick={() => {
+                              const srcIndex = records.indexOf(row);
+                              if (srcIndex < 0) return;
+                              setDeleteRecord({ index: srcIndex, row });
+                            }}
+                          >
+                            Xoá
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -268,16 +408,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
             <div className="flex flex-wrap gap-2">
               <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" onClick={() => setRecords((prev) => [...prev, { ...DEFAULT_RECORD }])}>Thêm bản ghi</button>
               <button type="button" disabled={savingField === "dns_records_json"} onClick={async () => {
-                const errors: string[] = [];
-                records.forEach((r, i) => {
-                  if (!r.host.trim() && !r.value.trim()) return;
-                  if (r.type === "A" && r.value && !/^\d{1,3}(\.\d{1,3}){3}$/.test(r.value.trim())) errors.push(`Bản ghi ${i + 1}: Giá trị A phải là IPv4 hợp lệ (VD: 103.57.221.79)`);
-                  if (r.type === "AAAA" && r.value && !/^[0-9a-fA-F:]+$/.test(r.value.trim())) errors.push(`Bản ghi ${i + 1}: Giá trị AAAA phải là IPv6 hợp lệ`);
-                  if (r.type === "MX" && r.priority && !/^\d+$/.test(r.priority.trim())) errors.push(`Bản ghi ${i + 1}: Ưu tiên MX phải là số nguyên`);
-                  if (r.type === "SRV" && r.priority && !/^\d+$/.test(r.priority.trim())) errors.push(`Bản ghi ${i + 1}: Ưu tiên SRV phải là số nguyên`);
-                  const ttlNum = Number(r.ttl);
-                  if (r.ttl && (!Number.isFinite(ttlNum) || ttlNum < 60)) errors.push(`Bản ghi ${i + 1}: TTL tối thiểu 60 giây`);
-                });
+                const errors = validateDnsRecords(records);
                 if (errors.length) { showNotice("error", errors[0]); return; }
                 try { await onSaveTab("dns_records_json", records); showNotice("ok", "Đã lưu cấu hình bản ghi DNS."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được bản ghi DNS."); }
               }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{savingField === "dns_records_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
@@ -300,7 +431,14 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
             <div className="flex flex-wrap gap-2">
               <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" onClick={() => setNameServers((p) => [...p, ""])}>Thêm</button>
               <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" onClick={() => { setNameServers([...DEFAULT_NAME_SERVERS]); showNotice("ok", "Đã áp dụng name server mặc định."); }}>Sử dụng name server mặc định</button>
-              <button type="button" disabled={savingField === "name_servers_json"} onClick={async () => { try { await onSaveTab("name_servers_json", nameServers.filter(Boolean)); showNotice("ok", "Đã lưu danh sách name server."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được name server."); } }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{savingField === "name_servers_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
+              <button type="button" disabled={savingField === "name_servers_json"} onClick={async () => {
+                const cleaned = nameServers.map((ns) => ns.trim());
+                if (cleaned.some((ns) => !ns)) {
+                  showNotice("error", "Name server không được để trống.");
+                  return;
+                }
+                try { await onSaveTab("name_servers_json", cleaned); showNotice("ok", "Đã lưu danh sách name server."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được name server."); }
+              }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{savingField === "name_servers_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
             </div>
           </div>
         ) : null}
@@ -318,7 +456,18 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
             ))}
             <div className="flex flex-wrap gap-2">
               <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" onClick={() => setChildren((p) => [...p, { ...DEFAULT_CHILD }])}>Thêm</button>
-              <button type="button" disabled={savingField === "child_dns_json"} onClick={async () => { try { await onSaveTab("child_dns_json", children); showNotice("ok", "Đã lưu cấu hình DNS con phụ."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được DNS con phụ."); } }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{savingField === "child_dns_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
+              <button type="button" disabled={savingField === "child_dns_json"} onClick={async () => {
+                const errors: string[] = [];
+                children.forEach((row, i) => {
+                  const name = row.name.trim();
+                  const ipv4 = row.ipv4.trim();
+                  if (!name && !ipv4 && !row.ipv6.trim()) return;
+                  if (!name) errors.push(`DNS con phụ ${i + 1}: Tên name server không được để trống`);
+                  if (!ipv4) errors.push(`DNS con phụ ${i + 1}: Địa chỉ IPv4 không được để trống`);
+                });
+                if (errors.length) { showNotice("error", errors[0]); return; }
+                try { await onSaveTab("child_dns_json", children); showNotice("ok", "Đã lưu cấu hình DNS con phụ."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được DNS con phụ."); }
+              }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{savingField === "child_dns_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
             </div>
           </div>
         ) : null}
@@ -335,7 +484,18 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
             ))}
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={forwards.length >= 10} className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm disabled:opacity-60" onClick={() => setForwards((p) => [...p, { ...DEFAULT_FORWARD }])}>Thêm</button>
-              <button type="button" disabled={savingField === "email_forwards_json"} onClick={async () => { try { const normalized = forwards.map((f) => ({ source: f.source.trim(), target: f.target.trim() })).filter((f) => f.source || f.target); await onSaveTab("email_forwards_json", normalized); showNotice("ok", "Đã lưu cấu hình email chuyển tiếp."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được email chuyển tiếp."); } }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{savingField === "email_forwards_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
+              <button type="button" disabled={savingField === "email_forwards_json"} onClick={async () => {
+                const normalized = forwards.map((f) => ({ source: f.source.trim(), target: f.target.trim() }));
+                const errors: string[] = [];
+                normalized.forEach((row, i) => {
+                  if (!row.source && !row.target) return;
+                  if (!row.source) errors.push(`Email chuyển tiếp ${i + 1}: Email nguồn không được để trống`);
+                  if (!row.target) errors.push(`Email chuyển tiếp ${i + 1}: Email đích không được để trống`);
+                });
+                if (errors.length) { showNotice("error", errors[0]); return; }
+                const filtered = normalized.filter((f) => f.source || f.target);
+                try { await onSaveTab("email_forwards_json", filtered); showNotice("ok", "Đã lưu cấu hình email chuyển tiếp."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được email chuyển tiếp."); }
+              }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{savingField === "email_forwards_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
             </div>
           </div>
         ) : null}

@@ -37,7 +37,7 @@ type DomainsListResponse = GraphqlBase & { data?: { dnsDomainsList?: DomainOptio
 type DomainBySlugResponse = GraphqlBase & { data?: { dnsDomainBySlug?: DomainRaw | null } };
 type TemplatesResponse = GraphqlBase & { data?: { dnsTemplatesList?: DnsTemplateRaw[] | null } };
 type SecurityPackagesResponse = GraphqlBase & { data?: { securityPackagesList?: SecurityPackageRaw[] | null } };
-type SaveResponse = GraphqlBase & { data?: { saveDnsDomainJsonTab?: { ok?: boolean | null; message?: string | null } | null } };
+type SaveResponse = GraphqlBase & { data?: { saveDnsDomainJsonTab?: { ok?: boolean | null; code?: string | null; message?: string | null } | null } };
 
 const DOMAINS_LIST_QUERY = `query DomainsList { dnsDomainsList { id domain slug } }`;
 const DOMAIN_BY_SLUG_QUERY = `
@@ -51,7 +51,7 @@ const DNS_TEMPLATES_QUERY = `query DnsTemplates { dnsTemplatesList { id title re
 const SECURITY_PACKAGES_QUERY = `query SecurityPackages { securityPackagesList { id title description } }`;
 const SAVE_JSON_TAB_MUTATION = `
   mutation SaveDnsDomainJsonTab($domainId: Int!, $field: String!, $payloadJson: String!) {
-    saveDnsDomainJsonTab(input: { domainId: $domainId field: $field payloadJson: $payloadJson }) { ok message }
+    saveDnsDomainJsonTab(input: { domainId: $domainId field: $field payloadJson: $payloadJson }) { ok code message }
   }
 `;
 
