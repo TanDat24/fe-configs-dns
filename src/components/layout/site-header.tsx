@@ -115,7 +115,7 @@ export function SiteHeader() {
   return (
     <header className="border-b border-gray-100 bg-white px-4 py-4 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between">
-        <Link href="/dashboard" className="flex shrink-0 items-center outline-offset-4">
+        <Link href="/" className="flex shrink-0 items-center outline-offset-4">
           <Image
             src="/logo-1.png"
             alt="CONFIGGS DNS Logo"
