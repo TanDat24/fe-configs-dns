@@ -11,12 +11,13 @@ import "server-only";
  * Co the override toan bo bang env `NEXT_PUBLIC_SITE_URL` (tien cho deploy co domain co dinh).
  */
 export function getPublicOrigin(request: Request): string {
-  const requestOrigin = new URL(request.url).origin;
-  const isLocalRequest =
-    requestOrigin.includes("://localhost") ||
-    requestOrigin.includes("://127.0.0.1") ||
-    requestOrigin.includes("://0.0.0.0");
+  // Uu tien tuyet doi: neu co env thi dung luon, bat ke request.url la gi
+  const override = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (override) {
+    return override.replace(/\/$/, "");
+  }
 
+  // Fallback cho dev (khong co env)
   const normalizeHost = (hostValue: string, protoValue: string) => {
     const host = hostValue.trim();
     const proto = protoValue.trim().toLowerCase();
@@ -24,11 +25,6 @@ export function getPublicOrigin(request: Request): string {
     if (proto === "http" && host.endsWith(":80")) return host.slice(0, -3);
     return host;
   };
-
-  const override = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (override && !isLocalRequest) {
-    return override.replace(/\/$/, "");
-  }
 
   const headers = request.headers;
   const xfHost = headers.get("x-forwarded-host") ?? headers.get("x-original-host");
@@ -48,5 +44,5 @@ export function getPublicOrigin(request: Request): string {
     return `${proto}://${normalizeHost(host, proto)}`;
   }
 
-  return requestOrigin;
+  return new URL(request.url).origin;
 }
