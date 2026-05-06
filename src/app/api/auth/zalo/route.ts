@@ -17,6 +17,8 @@ function pkceChallenge(verifier: string): string {
 
 export async function GET(request: Request) {
   const origin = getPublicOrigin(request);
+
+  
   const searchParams = new URL(request.url).searchParams;
   const next = searchParams.get("next");
   const consent = searchParams.get("consent") === "1";
@@ -30,6 +32,10 @@ export async function GET(request: Request) {
   }
 
   const redirectUri = `${origin}/api/auth/zalo/callback`;
+  console.log("[ZALO DEBUG] origin:", origin);
+  console.log("[ZALO DEBUG] redirectUri:", redirectUri);
+  console.log("[ZALO DEBUG] NEXT_PUBLIC_SITE_URL:", process.env.NEXT_PUBLIC_SITE_URL);
+  console.log("[ZALO DEBUG] request.url:", request.url);
 
   const verifier = randomVerifier();
   const challenge = pkceChallenge(verifier);
