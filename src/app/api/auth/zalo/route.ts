@@ -53,14 +53,14 @@ export async function GET(request: Request) {
     httpOnly: true,
     sameSite: "lax",
     secure: origin.startsWith("https://"),
-    path: "/api/auth/zalo",
+    path: "/api/auth/zalo/",
     maxAge: 60 * 10,
   });
   cookieStore.set(ZALO_NONCE_COOKIE, nonce, {
     httpOnly: true,
     sameSite: "lax",
     secure: origin.startsWith("https://"),
-    path: "/api/auth/zalo",
+    path: "/api/auth/zalo/",
     maxAge: stateTtlSec,
   });
 
