@@ -17,6 +17,14 @@ export function getPublicOrigin(request: Request): string {
     requestOrigin.includes("://127.0.0.1") ||
     requestOrigin.includes("://0.0.0.0");
 
+  const normalizeHost = (hostValue: string, protoValue: string) => {
+    const host = hostValue.trim();
+    const proto = protoValue.trim().toLowerCase();
+    if (proto === "https" && host.endsWith(":443")) return host.slice(0, -4);
+    if (proto === "http" && host.endsWith(":80")) return host.slice(0, -3);
+    return host;
+  };
+
   const override = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (override && !isLocalRequest) {
     return override.replace(/\/$/, "");
@@ -27,8 +35,8 @@ export function getPublicOrigin(request: Request): string {
   const xfProto = headers.get("x-forwarded-proto");
 
   if (xfHost) {
-    const host = xfHost.split(",")[0].trim();
     const proto = (xfProto ?? "https").split(",")[0].trim();
+    const host = normalizeHost(xfHost.split(",")[0], proto);
     return `${proto}://${host}`;
   }
 
@@ -37,7 +45,7 @@ export function getPublicOrigin(request: Request): string {
     const proto = (xfProto ?? (host.startsWith("localhost") ? "http" : "https"))
       .split(",")[0]
       .trim();
-    return `${proto}://${host}`;
+    return `${proto}://${normalizeHost(host, proto)}`;
   }
 
   return requestOrigin;
