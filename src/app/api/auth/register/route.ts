@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { WP_AUTH_COOKIE_NAME, wpAuthCookieOptions } from "@/lib/auth-cookie";
+import { applyAuthSessionCookies } from "@/lib/auth-cookie";
 import type { RegisterRequestDto, RegisterResponseDto } from "@/lib/contracts/api";
 import {
   createRequestId,
@@ -11,8 +11,6 @@ import {
 import { parseBodyOrThrow, registerSchema } from "@/lib/server/validators";
 import { wpGraphqlLogin } from "@/lib/server/wp-login";
 import { wpRegisterUser } from "@/lib/server/wp-register";
-
-const AUTH_COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 7;
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
@@ -66,6 +64,10 @@ export async function POST(request: Request) {
 
   const responseBody: RegisterResponseDto = { message: result.message, authToken: loginResult.authToken };
   const res = NextResponse.json(responseBody);
-  res.cookies.set(WP_AUTH_COOKIE_NAME, loginResult.authToken, wpAuthCookieOptions(AUTH_COOKIE_MAX_AGE_SEC, request));
+  applyAuthSessionCookies(
+    res,
+    { authToken: loginResult.authToken, refreshToken: loginResult.refreshToken },
+    request,
+  );
   return res;
 }

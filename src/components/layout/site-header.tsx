@@ -164,7 +164,7 @@ export function SiteHeader() {
         </div>
       </div>
 
-      {hideHeaderNav ? null : (
+      {/* {hideHeaderNav ? null : (
         <nav className="mt-3 flex flex-wrap gap-2">
           {navItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -183,7 +183,7 @@ export function SiteHeader() {
             );
           })}
         </nav>
-      )}
+      )} */}
     </header>
   );
 }

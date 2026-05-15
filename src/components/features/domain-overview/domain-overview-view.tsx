@@ -7,7 +7,6 @@ import { SecurityTabPanel } from "./security-tab-panel";
 import { useEffect, useState } from "react";
 import { useDomainOverview } from "@/hooks";
 import { useSearchParams } from "next/navigation";
-import ContactsPage from "@/app/(main)/contacts/page";
 import BillingOrdersPage from "@/app/(main)/billing-orders/page";
 import VerificationPage from "@/app/(main)/verification/page";
 import SupportTicketsPage from "@/app/(main)/support-tickets/page";
@@ -225,7 +224,6 @@ export function DomainOverviewView({ initialTab = "overview" }: DomainOverviewVi
           />
         ) : null}
 
-        {tab === "contacts" ? <ContactsPage /> : null}
         {tab === "billing-orders" ? <BillingOrdersPage /> : null}
         {tab === "verification" ? <VerificationPage /> : null}
         {tab === "support-tickets" ? <SupportTicketsPage /> : null}

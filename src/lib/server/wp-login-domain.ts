@@ -4,6 +4,7 @@ const LOGIN_WITH_DOMAIN_MUTATION = `
   mutation LoginWithDomain($domain: String!, $password: String!) {
     loginWithDomain(input: { domain: $domain, password: $password }) {
       authToken
+      refreshToken
       username
       domain
     }
@@ -31,6 +32,7 @@ export type WpLoginDomainResponse = {
   data?: {
     loginWithDomain?: {
       authToken?: string | null;
+      refreshToken?: string | null;
       username?: string | null;
       domain?: string | null;
     } | null;
@@ -71,7 +73,7 @@ async function parseWpJson<T>(response: Response): Promise<T> {
 }
 
 export type WpLoginDomainResult =
-  | { ok: true; authToken: string; username: string; domain: string }
+  | { ok: true; authToken: string; refreshToken: string | null; username: string; domain: string }
   | { ok: false; status: number; message: string };
 
 const DOMAIN_CHECK_FALLBACK_PASSWORD = "__domain_check_only__";
@@ -274,6 +276,7 @@ export async function wpGraphqlLoginWithDomain(
   return {
     ok: true,
     authToken,
+    refreshToken: payload?.refreshToken ?? null,
     username: payload?.username ?? "",
     domain: payload?.domain ?? domain,
   };

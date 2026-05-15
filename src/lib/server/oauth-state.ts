@@ -6,6 +6,13 @@ type OAuthProvider = "google" | "zalo";
 const SESSION_COOKIE = "oauth_session";
 const STATE_TTL_SEC = 60 * 10;
 
+export class OAuthStateConfigError extends Error {
+  constructor(message = "OAUTH_STATE_HMAC_SECRET is required.") {
+    super(message);
+    this.name = "OAuthStateConfigError";
+  }
+}
+
 type OAuthStatePayload = {
   provider: OAuthProvider;
   next: string;
@@ -25,15 +32,12 @@ function normalizeNextPath(raw: string | null | undefined): string {
   return next;
 }
 
-function getStateSecret(): string | null {
-  const secret =
-    process.env.OAUTH_STATE_HMAC_SECRET ??
-    process.env.AUTH_SECRET ??
-    process.env.NEXTAUTH_SECRET ??
-    process.env.GOOGLE_CLIENT_SECRET ??
-    process.env.ZALO_APP_SECRET ??
-    "";
-  return secret.trim() === "" ? null : secret;
+function requireStateSecret(): string {
+  const secret = process.env.OAUTH_STATE_HMAC_SECRET?.trim() ?? "";
+  if (secret === "") {
+    throw new OAuthStateConfigError();
+  }
+  return secret;
 }
 
 async function getOrCreateSessionId(): Promise<string> {
@@ -73,8 +77,8 @@ export async function createSignedOAuthState(input: {
     exp: Math.floor(Date.now() / 1000) + STATE_TTL_SEC,
   };
   const payloadBase64 = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const secret = getStateSecret();
-  const signature = secret ? signPayload(payloadBase64, secret) : "";
+  const secret = requireStateSecret();
+  const signature = signPayload(payloadBase64, secret);
   return { state: `${payloadBase64}.${signature}`, nonce, nextPath, stateTtlSec: STATE_TTL_SEC };
 }
 
@@ -86,10 +90,19 @@ export async function verifySignedOAuthState(
   const [payloadBase64, signature] = state.split(".", 2);
   if (!payloadBase64 || !signature) return { ok: false };
 
-  const secret = getStateSecret();
-  if (!secret) return { ok: false };
+  let secret: string;
+  try {
+    secret = requireStateSecret();
+  } catch {
+    return { ok: false };
+  }
+
   const expectedSig = signPayload(payloadBase64, secret);
-  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) return { ok: false };
+  const sigBuf = Buffer.from(signature);
+  const expectedBuf = Buffer.from(expectedSig);
+  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+    return { ok: false };
+  }
 
   try {
     const payload = JSON.parse(Buffer.from(payloadBase64, "base64url").toString()) as OAuthStatePayload;

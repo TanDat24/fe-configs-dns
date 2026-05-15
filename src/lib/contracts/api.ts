@@ -1,3 +1,5 @@
+import type { ContactMode, ContactType, Gender } from "@/lib/contact-types";
+
 export type ApiSuccess<T> = T;
 
 export type ApiErrorBody = {
@@ -167,6 +169,31 @@ export type UpsertOrderContactRequestDto = Partial<Omit<CustomerOrderContactDto,
 
 export type UpsertOrderItemRequestDto = Partial<Omit<CustomerOrderItemDto, "order_id">> & {
   order_id?: number;
+};
+
+export type CustomerUserContactDto = {
+  id?: number | null;
+  userId?: number | null;
+  contactType?: ContactType | null;
+  contactMode?: ContactMode | null;
+  companyName?: string | null;
+  taxCode?: string | null;
+  fullName?: string | null;
+  gender?: Gender | "" | null;
+  birthday?: string | null;
+  identityNumber?: string | null;
+  country?: string | null;
+  province?: string | null;
+  ward?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  fax?: string | null;
+  address?: string | null;
+  postalCode?: string | null;
+};
+
+export type UpsertMyUserContactRequestDto = Partial<Omit<CustomerUserContactDto, "id" | "userId">> & {
+  id?: number;
 };
 
 export type MutationResultWithIdDto = {

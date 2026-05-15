@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRequestId } from "@/lib/server/request-security";
 import { getPublicOrigin } from "@/lib/server/public-origin";
-import { createSignedOAuthState } from "@/lib/server/oauth-state";
+import { createSignedOAuthState, OAuthStateConfigError } from "@/lib/server/oauth-state";
 
 export async function GET(request: Request) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -18,7 +18,21 @@ export async function GET(request: Request) {
 
   const next = new URL(request.url).searchParams.get("next");
   const consent = new URL(request.url).searchParams.get("consent") === "1";
-  const { state, nonce } = await createSignedOAuthState({ provider: "google", nextRaw: next, consent });
+
+  let state: string;
+  let nonce: string;
+  try {
+    ({ state, nonce } = await createSignedOAuthState({ provider: "google", nextRaw: next, consent }));
+  } catch (err) {
+    if (err instanceof OAuthStateConfigError) {
+      const requestId = createRequestId();
+      return NextResponse.json(
+        { message: "OAuth chua duoc cau hinh tren may chu (OAUTH_STATE_HMAC_SECRET).", requestId },
+        { status: 500 },
+      );
+    }
+    throw err;
+  }
 
   const params = new URLSearchParams({
     client_id: clientId,

@@ -1,4 +1,5 @@
 import { apiJson } from "./client";
+import type { ContactDraft, ContactType, UserContact } from "@/lib/contact-types";
 import type {
   CustomerOrderContactDto,
   CustomerOrderItemDto,
@@ -73,6 +74,39 @@ export async function upsertOrderContact(
 
 export async function deleteOrderContact(id: number): Promise<MutationResultWithIdDto> {
   return apiJson<MutationResultWithIdDto>(`/api/customer-data/orders/contacts/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getMyUserContacts(input?: { contactType?: ContactType; domainId?: number }): Promise<UserContact[]> {
+  const search = new URLSearchParams();
+  if (input?.contactType) search.set("contactType", input.contactType);
+  if (typeof input?.domainId === "number") search.set("domainId", String(input.domainId));
+  const query = search.toString();
+
+  const data = await apiJson<{ items: UserContact[] }>(
+    `/api/customer-data/user-contacts${query ? `?${query}` : ""}`,
+    { method: "GET" },
+  );
+  return data.items;
+}
+
+export async function upsertMyUserContact(
+  input: ContactDraft,
+  options?: { domainId?: number },
+): Promise<MutationResultWithIdDto> {
+  const payload = {
+    ...input,
+    ...(typeof options?.domainId === "number" ? { domainId: options.domainId } : {}),
+  };
+  return apiJson<MutationResultWithIdDto>("/api/customer-data/user-contacts", {
+    method: "POST",
+    json: payload,
+  });
+}
+
+export async function deleteMyUserContact(id: number): Promise<MutationResultWithIdDto> {
+  return apiJson<MutationResultWithIdDto>(`/api/customer-data/user-contacts/${id}`, {
     method: "DELETE",
   });
 }

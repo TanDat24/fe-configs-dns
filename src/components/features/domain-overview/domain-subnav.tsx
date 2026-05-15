@@ -8,7 +8,6 @@ export const DOMAIN_TAB_IDS = [
   "overview",
   "dns",
   "security", // Cài đặt bảo mật (domain)
-  "contacts",
   "billing-orders",
   "verification",
   "support-tickets",
@@ -23,11 +22,9 @@ const SUBNAV_ITEMS: SubnavItem[] = [
   { tabId: "overview", label: "Tổng quan" },
   { tabId: "dns", label: "DNS" },
   { tabId: "security", label: "Cài đặt bảo mật" },
-
-  { tabId: "contacts", label: "Liên hệ" },
-  { tabId: "billing-orders", label: "Thanh toán & Đơn hàng" },
-  { tabId: "verification", label: "Xác minh (KYC)" },
-  { tabId: "support-tickets", label: "Hỗ trợ / Vé" },
+  // { tabId: "billing-orders", label: "Thanh toán & Đơn hàng" },
+  // { tabId: "verification", label: "Xác minh (KYC)" },
+  // { tabId: "support-tickets", label: "Hỗ trợ / Vé" },
 ];
 
 /** Nền dải tên miền — mint rất nhạt */

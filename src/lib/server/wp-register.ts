@@ -12,6 +12,7 @@ const LOGIN_WITH_GOOGLE_MUTATION = `
   mutation LoginWithGoogle($idToken: String!) {
     loginWithGoogle(input: { idToken: $idToken }) {
       authToken
+      refreshToken
     }
   }
 `;
@@ -20,6 +21,7 @@ const LOGIN_WITH_ZALO_MUTATION = `
   mutation LoginWithZalo($zaloId: String!, $name: String, $picture: String) {
     loginWithZalo(input: { zaloId: $zaloId, name: $name, picture: $picture }) {
       authToken
+      refreshToken
     }
   }
 `;
@@ -37,13 +39,18 @@ type RegisterResponse = {
   errors?: Array<{ message: string }>;
 };
 
+type SocialLoginPayload = {
+  authToken?: string | null;
+  refreshToken?: string | null;
+};
+
 type GoogleLoginResponse = {
-  data?: { loginWithGoogle?: { authToken?: string | null } | null };
+  data?: { loginWithGoogle?: SocialLoginPayload | null };
   errors?: Array<{ message: string }>;
 };
 
 type ZaloLoginResponse = {
-  data?: { loginWithZalo?: { authToken?: string | null } | null };
+  data?: { loginWithZalo?: SocialLoginPayload | null };
   errors?: Array<{ message: string }>;
 };
 
@@ -100,7 +107,7 @@ export async function wpRegisterUser(
 export async function wpLoginWithGoogle(
   endpoint: string,
   idToken: string,
-): Promise<{ ok: true; authToken: string } | { ok: false; status: number; message: string }> {
+): Promise<{ ok: true; authToken: string; refreshToken: string | null } | { ok: false; status: number; message: string }> {
   try {
     const res = await fetch(endpoint, {
       method: "POST",
@@ -123,7 +130,7 @@ export async function wpLoginWithGoogle(
       return { ok: false, status: 401, message: "Khong nhan duoc token tu may chu." };
     }
 
-    return { ok: true, authToken };
+    return { ok: true, authToken, refreshToken: json.data?.loginWithGoogle?.refreshToken ?? null };
   } catch {
     return { ok: false, status: 502, message: "Khong ket noi duoc may chu WordPress." };
   }
@@ -132,7 +139,7 @@ export async function wpLoginWithGoogle(
 export async function wpLoginWithZalo(
   endpoint: string,
   input: { zaloId: string; name?: string; picture?: string },
-): Promise<{ ok: true; authToken: string } | { ok: false; status: number; message: string }> {
+): Promise<{ ok: true; authToken: string; refreshToken: string | null } | { ok: false; status: number; message: string }> {
   try {
     const res = await fetch(endpoint, {
       method: "POST",
@@ -159,7 +166,7 @@ export async function wpLoginWithZalo(
       return { ok: false, status: 401, message: "Khong nhan duoc token tu may chu." };
     }
 
-    return { ok: true, authToken };
+    return { ok: true, authToken, refreshToken: json.data?.loginWithZalo?.refreshToken ?? null };
   } catch {
     return { ok: false, status: 502, message: "Khong ket noi duoc may chu WordPress." };
   }

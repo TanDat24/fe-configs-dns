@@ -1,4 +1,5 @@
 import "server-only";
+import { wpGraphqlWithAuth } from "@/lib/server/wp-graphql-client";
 
 type GraphqlBase = { errors?: Array<{ message: string }> };
 
@@ -69,6 +70,27 @@ type OrderItemNode = {
   status?: string | null;
 };
 
+type UserContactNode = {
+  id?: number | null;
+  userId?: number | null;
+  contactType?: string | null;
+  contactMode?: string | null;
+  companyName?: string | null;
+  taxCode?: string | null;
+  fullName?: string | null;
+  gender?: string | null;
+  birthday?: string | null;
+  identityNumber?: string | null;
+  country?: string | null;
+  province?: string | null;
+  ward?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  fax?: string | null;
+  address?: string | null;
+  postalCode?: string | null;
+};
+
 type ProvinceConnectionResponse = GraphqlBase & {
   data?: {
     dnsProvincesV2?: {
@@ -131,6 +153,15 @@ type UpsertOrderItemResponse = GraphqlBase & {
 };
 type DeleteOrderItemResponse = GraphqlBase & {
   data?: { dnsDeleteOrderItemV2?: MutationResult | null };
+};
+type UserContactsResponse = GraphqlBase & {
+  data?: { myUserContacts?: UserContactNode[] | null };
+};
+type SaveUserContactResponse = GraphqlBase & {
+  data?: { saveUserContact?: MutationResult | null };
+};
+type DeleteUserContactResponse = GraphqlBase & {
+  data?: { deleteUserContact?: MutationResult | null };
 };
 
 const PROVINCES_QUERY = `
@@ -305,18 +336,27 @@ const DELETE_ORDER_ITEM_MUTATION = `
   }
 `;
 
-async function parseWpJson<T>(response: Response): Promise<T> {
-  const text = await response.text();
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    const jsonStart = text.indexOf("{");
-    if (jsonStart >= 0) {
-      return JSON.parse(text.slice(jsonStart)) as T;
+const MY_USER_CONTACTS_QUERY = `
+  query MyUserContacts($contactType: String, $domainId: Int) {
+    myUserContacts(contactType: $contactType, domainId: $domainId) {
+      id userId contactType contactMode companyName taxCode fullName gender birthday identityNumber country province ward email phone fax address postalCode
     }
-    throw new Error("invalid_json");
   }
-}
+`;
+
+const UPSERT_USER_CONTACT_MUTATION = `
+  mutation SaveUserContact($id: Int, $domainId: Int, $contactType: String!, $contactMode: String, $fullName: String, $gender: String, $birthday: String, $identityNumber: String, $companyName: String, $taxCode: String, $country: String, $province: String, $ward: String, $email: String, $phone: String, $fax: String, $address: String, $postalCode: String) {
+    saveUserContact(input: { id: $id, domainId: $domainId, contactType: $contactType, contactMode: $contactMode, fullName: $fullName, gender: $gender, birthday: $birthday, identityNumber: $identityNumber, companyName: $companyName, taxCode: $taxCode, country: $country, province: $province, ward: $ward, email: $email, phone: $phone, fax: $fax, address: $address, postalCode: $postalCode }) {
+      ok code message id contactId
+    }
+  }
+`;
+
+const DELETE_USER_CONTACT_MUTATION = `
+  mutation DeleteUserContact($id: Int!) {
+    deleteUserContact(input: { id: $id }) { ok code message id contactId }
+  }
+`;
 
 async function wpGraphql<T>(
   endpoint: string,
@@ -324,13 +364,7 @@ async function wpGraphql<T>(
   query: string,
   variables?: Record<string, unknown>,
 ): Promise<T> {
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
-    body: JSON.stringify({ query, variables }),
-    cache: "no-store",
-  });
-  return parseWpJson<T>(res);
+  return wpGraphqlWithAuth<T>(endpoint, authToken, query, variables);
 }
 
 export async function wpGetProvincesV2(
@@ -503,6 +537,87 @@ export async function wpDeleteOrderItemV2(
     }
     const result = extractMutationResult(json.data?.dnsDeleteOrderItemV2);
     if (!result.ok) return result;
+    return { ok: true, code: result.code, message: result.message };
+  } catch {
+    return { ok: false, status: 502, message: "Loi goi WordPress GraphQL." };
+  }
+}
+
+export async function wpGetMyUserContactsV2(
+  endpoint: string,
+  authToken: string,
+  input?: { contactType?: string; domainId?: number },
+): Promise<
+  | { ok: true; items: UserContactNode[] }
+  | { ok: false; status: number; message: string; debug?: { httpStatus: number; body: string } }
+> {
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ query: MY_USER_CONTACTS_QUERY, variables: input }),
+      cache: "no-store",
+    });
+    const text = await res.text();
+    const json = ((): UserContactsResponse => {
+      try {
+        return JSON.parse(text) as UserContactsResponse;
+      } catch {
+        const jsonStart = text.indexOf("{");
+        if (jsonStart >= 0) {
+          return JSON.parse(text.slice(jsonStart)) as UserContactsResponse;
+        }
+        return { errors: [{ message: "invalid_json" }] } as UserContactsResponse;
+      }
+    })();
+    if (json.errors?.length) {
+      return {
+        ok: false,
+        status: 400,
+        message: json.errors.map((e) => e.message).join(" "),
+        debug: { httpStatus: res.status, body: text.slice(0, 2000) },
+      };
+    }
+    return { ok: true, items: json.data?.myUserContacts ?? [] };
+  } catch {
+    return { ok: false, status: 502, message: "Loi goi WordPress GraphQL." };
+  }
+}
+
+export async function wpUpsertMyUserContactV2(
+  endpoint: string,
+  authToken: string,
+  input: Record<string, unknown>,
+): Promise<{ ok: true; code: string; message: string; id?: number } | { ok: false; status: number; code?: string; message: string }> {
+  try {
+    const json = await wpGraphql<SaveUserContactResponse>(endpoint, authToken, UPSERT_USER_CONTACT_MUTATION, input);
+    if (json.errors?.length) {
+      return { ok: false, status: 400, message: json.errors.map((e) => e.message).join(" ") };
+    }
+    const result = extractMutationResult(json.data?.saveUserContact);
+    if (!result.ok) {
+      return result;
+    }
+    return { ok: true, code: result.code, message: result.message, id: result.id };
+  } catch {
+    return { ok: false, status: 502, message: "Loi goi WordPress GraphQL." };
+  }
+}
+
+export async function wpDeleteMyUserContactV2(
+  endpoint: string,
+  authToken: string,
+  id: number,
+): Promise<{ ok: true; code: string; message: string } | { ok: false; status: number; code?: string; message: string }> {
+  try {
+    const json = await wpGraphql<DeleteUserContactResponse>(endpoint, authToken, DELETE_USER_CONTACT_MUTATION, { id });
+    if (json.errors?.length) {
+      return { ok: false, status: 400, message: json.errors.map((e) => e.message).join(" ") };
+    }
+    const result = extractMutationResult(json.data?.deleteUserContact);
+    if (!result.ok) {
+      return result;
+    }
     return { ok: true, code: result.code, message: result.message };
   } catch {
     return { ok: false, status: 502, message: "Loi goi WordPress GraphQL." };

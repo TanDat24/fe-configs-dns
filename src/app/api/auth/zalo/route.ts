@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { getPublicOrigin } from "@/lib/server/public-origin";
-import { createSignedOAuthState } from "@/lib/server/oauth-state";
+import { createSignedOAuthState, OAuthStateConfigError } from "@/lib/server/oauth-state";
 
 export const ZALO_PKCE_COOKIE = "zalo_pkce";
 export const ZALO_NONCE_COOKIE = "zalo_nonce";
@@ -32,18 +32,28 @@ export async function GET(request: Request) {
   }
 
   const redirectUri = `${origin}/api/auth/zalo/callback`;
-  console.log("[ZALO DEBUG] origin:", origin);
-  console.log("[ZALO DEBUG] redirectUri:", redirectUri);
-  console.log("[ZALO DEBUG] NEXT_PUBLIC_SITE_URL:", process.env.NEXT_PUBLIC_SITE_URL);
-  console.log("[ZALO DEBUG] request.url:", request.url);
 
   const verifier = randomVerifier();
   const challenge = pkceChallenge(verifier);
-  const { state, nonce, stateTtlSec } = await createSignedOAuthState({
-    provider: "zalo",
-    nextRaw: next,
-    consent,
-  });
+
+  let state: string;
+  let nonce: string;
+  let stateTtlSec: number;
+  try {
+    ({ state, nonce, stateTtlSec } = await createSignedOAuthState({
+      provider: "zalo",
+      nextRaw: next,
+      consent,
+    }));
+  } catch (err) {
+    if (err instanceof OAuthStateConfigError) {
+      const back = new URL("/logout", origin);
+      back.searchParams.set("error", "oauth_config");
+      if (next && next !== "/") back.searchParams.set("next", next);
+      return NextResponse.redirect(back);
+    }
+    throw err;
+  }
 
   const params = new URLSearchParams({
     app_id: appId,

@@ -1,11 +1,8 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { WP_AUTH_COOKIE_NAME, wpAuthCookieOptions } from "@/lib/auth-cookie";
+import { applyAuthSessionCookies } from "@/lib/auth-cookie";
 import { getPublicOrigin } from "@/lib/server/public-origin";
 import { wpLoginWithGoogle, wpSocialAccountExists } from "@/lib/server/wp-register";
 import { verifySignedOAuthState } from "@/lib/server/oauth-state";
-
-const AUTH_COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 7;
 
 async function exchangeCodeForIdToken(
   code: string,
@@ -86,9 +83,12 @@ export async function GET(request: Request) {
   const result = await wpLoginWithGoogle(endpoint, idToken);
   if (!result.ok) return logoutWithError("google_login");
 
-  const cookieStore = await cookies();
+  const res = NextResponse.redirect(`${origin}${nextPath}`);
   const fakeReq = { headers: { get: (h: string) => request.headers.get(h) } } as unknown as Request;
-  cookieStore.set(WP_AUTH_COOKIE_NAME, result.authToken, wpAuthCookieOptions(AUTH_COOKIE_MAX_AGE_SEC, fakeReq));
-
-  return NextResponse.redirect(`${origin}${nextPath}`);
+  applyAuthSessionCookies(
+    res,
+    { authToken: result.authToken, refreshToken: result.refreshToken },
+    fakeReq,
+  );
+  return res;
 }

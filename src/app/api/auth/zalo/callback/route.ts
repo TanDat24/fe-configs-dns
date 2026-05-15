@@ -1,12 +1,10 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { WP_AUTH_COOKIE_NAME, wpAuthCookieOptions } from "@/lib/auth-cookie";
+import { applyAuthSessionCookies } from "@/lib/auth-cookie";
 import { getPublicOrigin } from "@/lib/server/public-origin";
 import { wpLoginWithZalo, wpSocialAccountExists } from "@/lib/server/wp-register";
 import { verifySignedOAuthState } from "@/lib/server/oauth-state";
 import { ZALO_NONCE_COOKIE, ZALO_PKCE_COOKIE } from "../route";
-
-const AUTH_COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 7;
 
 type ZaloTokenResponse = {
   access_token?: string;
@@ -182,12 +180,12 @@ export async function GET(request: Request) {
     return logoutWithError("zalo_login");
   }
 
+  const res = NextResponse.redirect(`${origin}${nextPath}`);
   const fakeReq = { headers: { get: (h: string) => request.headers.get(h) } } as unknown as Request;
-  cookieStore.set(
-    WP_AUTH_COOKIE_NAME,
-    result.authToken,
-    wpAuthCookieOptions(AUTH_COOKIE_MAX_AGE_SEC, fakeReq),
+  applyAuthSessionCookies(
+    res,
+    { authToken: result.authToken, refreshToken: result.refreshToken },
+    fakeReq,
   );
-
-  return NextResponse.redirect(`${origin}${nextPath}`);
+  return res;
 }

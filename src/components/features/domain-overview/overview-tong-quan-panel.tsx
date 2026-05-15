@@ -1,8 +1,9 @@
-﻿import { useMemo, useState } from "react";
+﻿import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { DomainConfig, DomainOverviewField } from "@/lib/domain-types";
 import { computeProtectionLevel } from "@/lib/domain-types";
 import { DomainSummaryCards } from "./domain-summary-cards";
+import { UserContactsTabs } from "@/components/features/user-contacts/user-contacts-manager";
 
 const TEAL = "text-teal-600";
 
@@ -10,14 +11,6 @@ type OverviewTongQuanPanelProps = {
   data: DomainConfig;
   onSaveOverview: (fields: Partial<Record<DomainOverviewField, string>>) => Promise<void>;
   saving: boolean;
-};
-
-type OwnerDraft = {
-  owner_name: string;
-  owner_address: string;
-  owner_phone: string;
-  owner_email: string;
-  owner_postcode: string;
 };
 
 function circleClass(v: "active" | "muted" | "danger") {
@@ -30,15 +23,6 @@ function circleClass(v: "active" | "muted" | "danger") {
 }
 
 export function OverviewTongQuanPanel({ data, onSaveOverview, saving }: OverviewTongQuanPanelProps) {
-  const [editingOwner, setEditingOwner] = useState(false);
-  const [owner, setOwner] = useState<OwnerDraft>({
-    owner_name: data.owner_name,
-    owner_address: data.owner_address,
-    owner_phone: data.owner_phone,
-    owner_email: data.owner_email,
-    owner_postcode: data.owner_postcode,
-  });
-
   const protectionLevel = computeProtectionLevel(
     data.security_services_json ?? [],
     data.two_factor_enabled === "1",
@@ -58,8 +42,8 @@ export function OverviewTongQuanPanel({ data, onSaveOverview, saving }: Overview
   }, [data.registration_date, data.expiry_date, redDays, pendingDays]);
 
   const domainDataWithProtection = useMemo(
-    () => ({ ...data, ...owner, protection_level: String(protectionLevel) }),
-    [data, owner, protectionLevel],
+    () => ({ ...data, protection_level: String(protectionLevel) }),
+    [data, protectionLevel],
   );
 
   return (
@@ -69,67 +53,13 @@ export function OverviewTongQuanPanel({ data, onSaveOverview, saving }: Overview
       <section className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
         <div className="flex items-center justify-between gap-3 bg-zinc-100 px-4 py-3 sm:px-5">
           <h2 className={`text-sm font-semibold sm:text-base ${TEAL}`}>Thông tin chủ thể</h2>
-          <button
-            type="button"
-            className="shrink-0 rounded border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 transition hover:bg-zinc-50 sm:text-sm"
-            onClick={() => setEditingOwner((v) => !v)}
-          >
-            {editingOwner ? "Huỷ" : "Chỉnh sửa"}
-          </button>
         </div>
         <div className="p-4 sm:p-5">
-          {editingOwner ? (
-            <div className="space-y-3 text-sm">
-              {([
-                ["owner_name", "Tên"],
-                ["owner_address", "Địa chỉ"],
-                ["owner_phone", "Điện thoại"],
-                ["owner_email", "Email"],
-                ["owner_postcode", "Mã bưu chính"],
-              ] as Array<[keyof OwnerDraft, string]>).map(([k, label]) => (
-                <div key={k} className="grid grid-cols-1 gap-2 sm:grid-cols-[8rem_1fr]">
-                  <label className="text-zinc-600">{label}</label>
-                  <input
-                    className="rounded-md border border-zinc-300 px-3 py-2"
-                    value={owner[k]}
-                    onChange={(e) => setOwner((prev) => ({ ...prev, [k]: e.target.value }))}
-                  />
-                </div>
-              ))}
-              <div className="pt-2">
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={async () => {
-                    await onSaveOverview(owner);
-                    setEditingOwner(false);
-                  }}
-                  className="rounded-md bg-zinc-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                >
-                  {saving ? "Đang lưu..." : "Lưu thông tin chủ thể"}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <dl className="space-y-3 text-sm">
-              {[
-                ["Tên", owner.owner_name],
-                ["Địa chỉ", owner.owner_address],
-                ["Điện thoại", owner.owner_phone],
-                ["E-mail", owner.owner_email],
-                ["Mã bưu chính", owner.owner_postcode],
-              ].map(([label, value]) => (
-                <div key={String(label)} className="grid grid-cols-1 gap-1 border-b border-zinc-100 pb-3 last:border-0 last:pb-0 sm:grid-cols-[7.5rem_1fr] sm:gap-x-6">
-                  <dt className="text-zinc-500">{label}</dt>
-                  <dd className="font-medium text-zinc-900">{value || "-"}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
+          <UserContactsTabs domainId={data.id} />
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
+      {/* <section className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
         <div className="bg-zinc-100 px-4 py-4 sm:px-5">
           <h2 className={`text-sm font-semibold sm:text-base ${TEAL}`}>Vòng đời tên miền Quốc tế</h2>
         </div>
@@ -179,7 +109,7 @@ export function OverviewTongQuanPanel({ data, onSaveOverview, saving }: Overview
             <p>Các thông tin ngày đăng ký, ngày hết hạn, trạng thái tên miền được quản lý bởi hệ thống. Để thay đổi, vui lòng liên hệ bộ phận hỗ trợ hoặc truy cập wp-admin.</p>
           </div>
         </div>
-      </section>
+      </section> */}
     </div>
   );
 }

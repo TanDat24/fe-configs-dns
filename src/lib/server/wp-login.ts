@@ -1,82 +1,104 @@
 import "server-only";
+import { wpGraphqlRequest } from "@/lib/server/wp-graphql-client";
 
 const LOGIN_MUTATION = `
   mutation Login($username: String!, $password: String!) {
     login(input: { username: $username, password: $password }) {
       authToken
+      refreshToken
     }
   }
 `;
 
-export type WpGraphqlResponse = {
-  data?: { login?: { authToken?: string | null } | null };
+const REFRESH_MUTATION = `
+  mutation RefreshJwtAuthToken($jwtRefreshToken: String!) {
+    refreshJwtAuthToken(input: { jwtRefreshToken: $jwtRefreshToken }) {
+      authToken
+    }
+  }
+`;
+
+export type WpGraphqlLoginResponse = {
+  data?: { login?: { authToken?: string | null; refreshToken?: string | null } | null };
   errors?: Array<{ message: string }>;
 };
 
-async function parseWpJson<T>(response: Response): Promise<T> {
-  const text = await response.text();
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    const jsonStart = text.indexOf("{");
-    if (jsonStart >= 0) {
-      return JSON.parse(text.slice(jsonStart)) as T;
-    }
-    throw new Error("invalid_json");
-  }
-}
+type WpGraphqlRefreshResponse = {
+  data?: { refreshJwtAuthToken?: { authToken?: string | null } | null };
+  errors?: Array<{ message: string }>;
+};
+
+export type WpAuthTokens = {
+  authToken: string;
+  refreshToken: string | null;
+};
 
 export async function wpGraphqlLogin(
   endpoint: string,
   username: string,
   password: string,
-): Promise<{ ok: true; authToken: string } | { ok: false; status: number; message: string }> {
-  let wpRes: Response;
+): Promise<{ ok: true; authToken: string; refreshToken: string | null } | { ok: false; status: number; message: string }> {
   try {
-    wpRes = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: LOGIN_MUTATION,
-        variables: { username, password },
-      }),
-      cache: "no-store",
+    const json = await wpGraphqlRequest<WpGraphqlLoginResponse>(endpoint, {
+      query: LOGIN_MUTATION,
+      variables: { username, password },
     });
+
+    if (json.errors?.length) {
+      const msg = json.errors.map((e) => e.message).join(" ") || "Dang nhap that bai.";
+      return { ok: false, status: 401, message: msg };
+    }
+
+    const authToken = json.data?.login?.authToken;
+    if (!authToken) {
+      return {
+        ok: false,
+        status: 401,
+        message: "Dang nhap that bai. Khong nhan duoc authToken.",
+      };
+    }
+
+    const refreshToken = json.data?.login?.refreshToken ?? null;
+    return { ok: true, authToken, refreshToken: refreshToken ?? null };
   } catch {
     return {
       ok: false,
       status: 502,
-      message: "Không kết nối được tới máy chủ WordPress.",
+      message: "Khong ket noi duoc toi may chu WordPress.",
     };
   }
+}
 
-  let json: WpGraphqlResponse;
+export async function wpGraphqlRefreshAuthToken(
+  endpoint: string,
+  refreshToken: string,
+): Promise<{ ok: true; authToken: string } | { ok: false; status: number; message: string }> {
+  if (refreshToken.trim() === "") {
+    return { ok: false, status: 401, message: "Thieu refresh token." };
+  }
+
   try {
-    json = await parseWpJson<WpGraphqlResponse>(wpRes);
+    const json = await wpGraphqlRequest<WpGraphqlRefreshResponse>(endpoint, {
+      query: REFRESH_MUTATION,
+      variables: { jwtRefreshToken: refreshToken },
+    });
+
+    if (json.errors?.length) {
+      const msg = json.errors.map((e) => e.message).join(" ") || "Refresh token khong hop le.";
+      return { ok: false, status: 401, message: msg };
+    }
+
+    const authToken = json.data?.refreshJwtAuthToken?.authToken;
+    if (!authToken) {
+      return { ok: false, status: 401, message: "Khong nhan duoc authToken moi." };
+    }
+
+    return { ok: true, authToken };
   } catch {
     return {
       ok: false,
       status: 502,
-      message: "Phản hồi từ WordPress không hợp lệ.",
+      message: "Khong ket noi duoc toi may chu WordPress.",
     };
   }
-
-  if (json.errors?.length) {
-    const msg =
-      json.errors.map((e) => e.message).join(" ") || "Đăng nhập thất bại.";
-    return { ok: false, status: 401, message: msg };
-  }
-
-  const authToken = json.data?.login?.authToken;
-  if (!authToken) {
-    return {
-      ok: false,
-      status: 401,
-      message: "Đăng nhập thất bại. Không nhận được authToken.",
-    };
-  }
-
-  return { ok: true, authToken };
 }
