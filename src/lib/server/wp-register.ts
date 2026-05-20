@@ -18,8 +18,8 @@ const LOGIN_WITH_GOOGLE_MUTATION = `
 `;
 
 const LOGIN_WITH_ZALO_MUTATION = `
-  mutation LoginWithZalo($zaloId: String!, $name: String, $picture: String) {
-    loginWithZalo(input: { zaloId: $zaloId, name: $name, picture: $picture }) {
+  mutation LoginWithZalo($accessToken: String!, $name: String, $picture: String) {
+    loginWithZalo(input: { accessToken: $accessToken, name: $name, picture: $picture }) {
       authToken
       refreshToken
     }
@@ -27,8 +27,8 @@ const LOGIN_WITH_ZALO_MUTATION = `
 `;
 
 const SOCIAL_ACCOUNT_EXISTS_MUTATION = `
-  mutation SocialAccountExists($provider: String!, $email: String, $zaloId: String) {
-    socialAccountExists(input: { provider: $provider, email: $email, zaloId: $zaloId }) {
+  mutation SocialAccountExists($provider: String!, $idToken: String, $accessToken: String) {
+    socialAccountExists(input: { provider: $provider, idToken: $idToken, accessToken: $accessToken }) {
       exists
     }
   }
@@ -138,7 +138,7 @@ export async function wpLoginWithGoogle(
 
 export async function wpLoginWithZalo(
   endpoint: string,
-  input: { zaloId: string; name?: string; picture?: string },
+  input: { accessToken: string; name?: string; picture?: string },
 ): Promise<{ ok: true; authToken: string; refreshToken: string | null } | { ok: false; status: number; message: string }> {
   try {
     const res = await fetch(endpoint, {
@@ -147,7 +147,7 @@ export async function wpLoginWithZalo(
       body: JSON.stringify({
         query: LOGIN_WITH_ZALO_MUTATION,
         variables: {
-          zaloId: input.zaloId,
+          accessToken: input.accessToken,
           name: input.name ?? null,
           picture: input.picture ?? null,
         },
@@ -174,7 +174,7 @@ export async function wpLoginWithZalo(
 
 export async function wpSocialAccountExists(
   endpoint: string,
-  input: { provider: "google" | "zalo"; email?: string; zaloId?: string },
+  input: { provider: "google" | "zalo"; idToken?: string; accessToken?: string },
 ): Promise<{ ok: true; exists: boolean } | { ok: false; status: number; message: string }> {
   try {
     const res = await fetch(endpoint, {
@@ -184,8 +184,8 @@ export async function wpSocialAccountExists(
         query: SOCIAL_ACCOUNT_EXISTS_MUTATION,
         variables: {
           provider: input.provider,
-          email: input.email ?? null,
-          zaloId: input.zaloId ?? null,
+          idToken: input.idToken ?? null,
+          accessToken: input.accessToken ?? null,
         },
       }),
       cache: "no-store",

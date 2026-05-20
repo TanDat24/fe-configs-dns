@@ -87,6 +87,18 @@ export const saveDomainTabSchema = z.object({
   payload: z.unknown(),
 });
 
+export const linkDomainSchema = z.object({
+  domain: z
+    .string()
+    .trim()
+    .min(3, "Vui long nhap ten mien.")
+    .regex(
+      /^(?:https?:\/\/)?(?:www\.)?[a-z0-9][a-z0-9.\-]*\.[a-z]{2,}(?:\/.*)?$/i,
+      "Ten mien khong hop le.",
+    ),
+  force: z.boolean().optional(),
+});
+
 export const saveUserContactSchema = z
   .object({
     id: z.number().int().positive().optional(),

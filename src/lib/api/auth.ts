@@ -28,11 +28,11 @@ export async function login(input: LoginInput): Promise<LoginResult> {
     },
   });
 
-  if (!data.authToken) {
-    throw new ApiError("Không nhận được token.", 500, data);
+  if (!data.ok) {
+    throw new ApiError("Đăng nhập thất bại.", 500, data);
   }
 
-  return { authToken: data.authToken };
+  return data;
 }
 
 export type LoginByDomainInput = LoginDomainRequestDto;

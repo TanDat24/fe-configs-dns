@@ -10,7 +10,10 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "ops:secrets": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/generate-secrets.ps1",
+    "ops:env-prod": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/setup-production-env.ps1",
+    "ops:verify": "powershell -NoProfile -ExecutionPolicy Bypass -File ../deploy/post-deploy-verify.ps1"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.10",

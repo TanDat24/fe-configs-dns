@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createRequestId } from "@/lib/server/request-security";
-import { getPublicOrigin } from "@/lib/server/public-origin";
+import { getOAuthRedirectUri, getPublicOrigin } from "@/lib/server/public-origin";
 import { createSignedOAuthState, OAuthStateConfigError } from "@/lib/server/oauth-state";
 
 export async function GET(request: Request) {
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   }
 
   const origin = getPublicOrigin(request);
-  const redirectUri = `${origin}/api/auth/google/callback`;
+  const redirectUri = getOAuthRedirectUri(request, "/api/auth/google/callback");
 
   const next = new URL(request.url).searchParams.get("next");
   const consent = new URL(request.url).searchParams.get("consent") === "1";

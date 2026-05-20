@@ -161,7 +161,7 @@ export async function GET(request: Request) {
   const profile = await fetchZaloUser(accessToken);
   if (!profile) return logoutWithError("zalo_profile");
 
-  const exists = await wpSocialAccountExists(endpoint, { provider: "zalo", zaloId: profile.id });
+  const exists = await wpSocialAccountExists(endpoint, { provider: "zalo", accessToken });
   if ((!exists.ok || !exists.exists) && !verifiedState.consent) {
     const back = new URL("/logout", origin);
     back.searchParams.set("error", "consent_required_zalo");
@@ -171,7 +171,7 @@ export async function GET(request: Request) {
   }
 
   const result = await wpLoginWithZalo(endpoint, {
-    zaloId: profile.id,
+    accessToken,
     name: profile.name,
     picture: profile.picture,
   });

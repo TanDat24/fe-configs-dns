@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     return NextResponse.json(responseBody);
   }
 
-  const responseBody: RegisterResponseDto = { message: result.message, authToken: loginResult.authToken };
+  const responseBody: RegisterResponseDto = { message: result.message, ok: true };
   const res = NextResponse.json(responseBody);
   applyAuthSessionCookies(
     res,

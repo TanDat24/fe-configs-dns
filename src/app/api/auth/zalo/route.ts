@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
-import { getPublicOrigin } from "@/lib/server/public-origin";
+import { getOAuthRedirectUri, getPublicOrigin } from "@/lib/server/public-origin";
 import { createSignedOAuthState, OAuthStateConfigError } from "@/lib/server/oauth-state";
 
 export const ZALO_PKCE_COOKIE = "zalo_pkce";
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(back);
   }
 
-  const redirectUri = `${origin}/api/auth/zalo/callback`;
+  const redirectUri = getOAuthRedirectUri(request, "/api/auth/zalo/callback");
 
   const verifier = randomVerifier();
   const challenge = pkceChallenge(verifier);

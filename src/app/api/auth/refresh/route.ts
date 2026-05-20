@@ -67,7 +67,8 @@ export async function POST(request: Request) {
     return res;
   }
 
-  const res = NextResponse.json({ ok: true, authToken: result.authToken });
+  // Security fix: JWT only in httpOnly cookies.
+  const res = NextResponse.json({ ok: true });
   applyAuthSessionCookies(res, { authToken: result.authToken, refreshToken }, request);
   return res;
 }

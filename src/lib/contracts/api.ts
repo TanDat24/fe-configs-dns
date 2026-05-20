@@ -13,7 +13,7 @@ export type LoginRequestDto = {
 };
 
 export type LoginResponseDto = {
-  authToken: string;
+  ok: boolean;
 };
 
 export type LoginDomainRequestDto = {
@@ -22,7 +22,7 @@ export type LoginDomainRequestDto = {
 };
 
 export type LoginDomainResponseDto = {
-  authToken?: string;
+  ok?: boolean;
   domainExists?: boolean;
   username?: string;
   domain?: string;
@@ -61,8 +61,8 @@ export type ChangePasswordResponseDto = {
 
 export type UploadCccdResponseDto = {
   message: string;
-  frontFileUrl: string;
-  backFileUrl: string;
+  frontImagePath: string;
+  backImagePath: string;
 };
 
 export type RegisterRequestDto = {
@@ -74,7 +74,7 @@ export type RegisterRequestDto = {
 
 export type RegisterResponseDto = {
   message: string;
-  authToken?: string;
+  ok?: boolean;
 };
 
 export type SaveDomainTabRequestDto = {

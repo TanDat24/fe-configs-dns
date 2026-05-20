@@ -13,6 +13,8 @@ import type {
 } from "@/lib/domain-types";
 import type { DomainOption } from "@/lib/api/domain";
 import {
+  addDomainToMe,
+  linkDomainToMe,
   loadDomainBootData,
   loadDomainDetail,
   saveDomainOverview,
@@ -43,6 +45,7 @@ export function useDomainOverview() {
   const [error, setError] = useState<string | null>(null);
   const [savingField, setSavingField] = useState<DomainJsonField | null>(null);
   const [savingOverview, setSavingOverview] = useState(false);
+  const [linkingDomain, setLinkingDomain] = useState(false);
 
   const fallbackSlug = useMemo(() => toSlugFromDomain(DEFAULT_DOMAIN_NAME), []);
 
@@ -178,6 +181,62 @@ export function useDomainOverview() {
     await updateMyPassword(input);
   }
 
+  async function refreshDomains(nextSlug?: string) {
+    const { domains: domainList, templates: tpl, securityPackages: secPackages } =
+      await loadDomainBootData();
+    setDomains(domainList);
+    setTemplates(tpl);
+    setSecurityPackages(secPackages);
+    if (domainList.length === 0) {
+      setSelectedSlug("");
+      setDomainData(null);
+      return;
+    }
+    if (nextSlug && domainList.some((d) => d.slug === nextSlug)) {
+      setSelectedSlug(nextSlug);
+      return;
+    }
+    if (!selectedSlug || !domainList.some((d) => d.slug === selectedSlug)) {
+      setSelectedSlug(domainList[0].slug);
+    }
+  }
+
+  async function linkDomain(domain: string, force?: boolean) {
+    setLinkingDomain(true);
+    setError(null);
+    try {
+      const result = await linkDomainToMe({ domain, force });
+      await refreshDomains(result.slug);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        redirectToLogout();
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Lien ket ten mien that bai.");
+      throw err;
+    } finally {
+      setLinkingDomain(false);
+    }
+  }
+
+  async function addDomain(domain: string, force?: boolean) {
+    setLinkingDomain(true);
+    setError(null);
+    try {
+      const result = await addDomainToMe({ domain, force });
+      await refreshDomains(result.slug);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        redirectToLogout();
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Them ten mien that bai.");
+      throw err;
+    } finally {
+      setLinkingDomain(false);
+    }
+  }
+
   return {
     domainData,
     domains,
@@ -189,11 +248,14 @@ export function useDomainOverview() {
     error,
     savingField,
     savingOverview,
+    linkingDomain,
     saveTab,
     saveOverview,
     saveSecurityServices,
     saveTwoFactor,
     handleChangePassword,
+    linkDomain,
+    addDomain,
     defaultDomainName: DEFAULT_DOMAIN_NAME,
   };
 }

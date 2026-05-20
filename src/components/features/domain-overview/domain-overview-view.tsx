@@ -46,7 +46,19 @@ function OfflineHint() {
   return null;
 }
 
-function EmptyDomainsState() {
+function EmptyDomainsState({
+  value,
+  onChange,
+  onSubmit,
+  loading,
+  error,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  loading: boolean;
+  error: string | null;
+}) {
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="flex w-full max-w-xl flex-col items-center rounded-2xl border border-zinc-200 bg-white px-6 py-12 text-center shadow-sm sm:px-10 sm:py-14">
@@ -75,6 +87,28 @@ function EmptyDomainsState() {
           Tài khoản của bạn chưa được liên kết với tên miền dịch vụ nào.
           Nếu đã sở hữu tên miền, vui lòng liên hệ quản trị viên để liên kết.
         </p>
+
+        <div className="mt-6 w-full">
+          <div className="flex w-full flex-col gap-2 sm:flex-row">
+            <input
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="Nhap ten mien can lien ket"
+              className="h-10 flex-1 rounded-md border border-zinc-300 px-3 text-sm"
+            />
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={loading}
+              className="inline-flex h-10 items-center justify-center rounded-md bg-zinc-900 px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? "Dang lien ket..." : "Lien ket domain"}
+            </button>
+          </div>
+          {error ? (
+            <div className="mt-2 text-left text-xs text-red-600">{error}</div>
+          ) : null}
+        </div>
 
         <div className="mt-7 grid w-full gap-2 sm:grid-cols-2">
           <a
@@ -135,13 +169,20 @@ export function DomainOverviewView({ initialTab = "overview" }: DomainOverviewVi
     error,
     savingField,
     savingOverview,
+    linkingDomain,
     saveTab,
     saveOverview,
     saveSecurityServices,
     saveTwoFactor,
     handleChangePassword,
+    linkDomain,
+    addDomain,
     defaultDomainName,
   } = useDomainOverview();
+
+  const [linkInput, setLinkInput] = useState("");
+  const [addInput, setAddInput] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
 
   const hasNoDomains = !loading && domains.length === 0;
 
@@ -149,7 +190,26 @@ export function DomainOverviewView({ initialTab = "overview" }: DomainOverviewVi
     return (
       <div className="flex min-h-0 flex-1 flex-col font-sans">
         <OfflineHint />
-        <EmptyDomainsState />
+        <EmptyDomainsState
+          value={linkInput}
+          onChange={setLinkInput}
+          onSubmit={async () => {
+            const value = linkInput.trim();
+            if (!value) {
+              setFormError("Vui long nhap ten mien.");
+              return;
+            }
+            setFormError(null);
+            try {
+              await linkDomain(value);
+              setLinkInput("");
+            } catch (err) {
+              setFormError(err instanceof Error ? err.message : "Lien ket ten mien that bai.");
+            }
+          }}
+          loading={linkingDomain}
+          error={formError}
+        />
       </div>
     );
   }
@@ -157,19 +217,51 @@ export function DomainOverviewView({ initialTab = "overview" }: DomainOverviewVi
   return (
     <div className="flex min-h-0 flex-1 flex-col font-sans">
       {domains.length > 0 ? (
-        <div className="mb-2 flex items-center gap-2 py-2">
-          <span className="text-sm text-zinc-600">Tên miền:</span>
-          <select
-            value={selectedSlug}
-            onChange={(e) => setSelectedSlug(e.target.value)}
-            className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-          >
-            {domains.map((d) => (
-              <option key={d.id} value={d.slug}>
-                {d.domain}
-              </option>
-            ))}
-          </select>
+        <div className="mb-2 flex flex-wrap items-center gap-3 py-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-zinc-600">Tên miền:</span>
+            <select
+              value={selectedSlug}
+              onChange={(e) => setSelectedSlug(e.target.value)}
+              className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+            >
+              {domains.map((d) => (
+                <option key={d.id} value={d.slug}>
+                  {d.domain}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+            <input
+              value={addInput}
+              onChange={(e) => setAddInput(e.target.value)}
+              placeholder="Nhap ten mien can them"
+              className="h-9 flex-1 rounded-md border border-zinc-300 px-3 text-sm"
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                const value = addInput.trim();
+                if (!value) {
+                  setFormError("Vui long nhap ten mien.");
+                  return;
+                }
+                setFormError(null);
+                try {
+                  await addDomain(value);
+                  setAddInput("");
+                } catch (err) {
+                  setFormError(err instanceof Error ? err.message : "Them ten mien that bai.");
+                }
+              }}
+              disabled={linkingDomain}
+              className="inline-flex h-9 items-center justify-center rounded-md bg-zinc-900 px-4 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {linkingDomain ? "Dang them..." : "Them domain"}
+            </button>
+          </div>
+          {formError ? <div className="w-full text-xs text-red-600">{formError}</div> : null}
         </div>
       ) : null}
 

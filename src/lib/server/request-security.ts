@@ -25,19 +25,49 @@ function normalizeOrigin(value: string): string {
   }
 }
 
+function isProductionRuntime(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
+/** SECURITY FIX: reject wildcard / invalid origins — no open CORS in production. */
+function parseAllowedOriginsList(raw: string): string[] {
+  const out: string[] = [];
+  for (const item of raw.split(",")) {
+    const trimmed = item.trim();
+    if (!trimmed || trimmed === "*" || trimmed.includes("*")) {
+      continue;
+    }
+    const normalized = normalizeOrigin(trimmed);
+    if (!normalized) continue;
+    try {
+      const host = new URL(normalized).hostname;
+      if (host === "localhost" || host === "127.0.0.1") {
+        if (isProductionRuntime()) continue;
+      }
+    } catch {
+      continue;
+    }
+    out.push(normalized);
+  }
+  return [...new Set(out)];
+}
+
 function getAllowedOrigins(request: Request): string[] {
-  const raw = process.env.INTERNAL_API_ALLOWED_ORIGINS;
-  if (!raw) {
-    const origin = request.headers.get("origin");
-    if (!origin) return [];
-    const normalized = normalizeOrigin(origin);
-    return normalized ? [normalized] : [];
+  const raw = process.env.INTERNAL_API_ALLOWED_ORIGINS?.trim() ?? "";
+
+  if (raw !== "") {
+    return parseAllowedOriginsList(raw);
   }
 
-  return raw
-    .split(",")
-    .map((item) => normalizeOrigin(item.trim()))
-    .filter(Boolean);
+  // SECURITY FIX: production must set INTERNAL_API_ALLOWED_ORIGINS explicitly.
+  if (isProductionRuntime()) {
+    return [];
+  }
+
+  const origin = request.headers.get("origin");
+  if (!origin) return [];
+  const normalized = normalizeOrigin(origin);
+  return normalized ? [normalized] : [];
 }
 
 export function createRequestId(): string {
@@ -108,6 +138,16 @@ export function enforceRateLimit(input: {
   return { ok: true };
 }
 
+function isLocalDevOrigin(origin: string): boolean {
+  if (isProductionRuntime()) return false;
+  try {
+    const host = new URL(origin).hostname;
+    return host === "localhost" || host === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
 export function verifySameOriginCsrf(request: Request): boolean {
   const method = request.method.toUpperCase();
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return true;
@@ -117,6 +157,8 @@ export function verifySameOriginCsrf(request: Request): boolean {
 
   const normalizedOrigin = normalizeOrigin(origin);
   if (!normalizedOrigin) return false;
+
+  if (isLocalDevOrigin(normalizedOrigin)) return true;
 
   return getAllowedOrigins(request).includes(normalizedOrigin);
 }

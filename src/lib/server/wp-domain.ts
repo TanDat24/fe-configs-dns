@@ -38,6 +38,8 @@ type DomainBySlugResponse = GraphqlBase & { data?: { dnsDomainBySlug?: DomainRaw
 type TemplatesResponse = GraphqlBase & { data?: { dnsTemplatesList?: DnsTemplateRaw[] | null } };
 type SecurityPackagesResponse = GraphqlBase & { data?: { securityPackagesList?: SecurityPackageRaw[] | null } };
 type SaveResponse = GraphqlBase & { data?: { saveDnsDomainJsonTab?: { ok?: boolean | null; code?: string | null; message?: string | null } | null } };
+type LinkDomainResponse = GraphqlBase & { data?: { linkDomainToCurrentUser?: { ok?: boolean | null; code?: string | null; message?: string | null; domainId?: number | null; domain?: string | null; slug?: string | null } | null } };
+type AddDomainResponse = GraphqlBase & { data?: { addDomainToCurrentUser?: { ok?: boolean | null; code?: string | null; message?: string | null; domainId?: number | null; domain?: string | null; slug?: string | null } | null } };
 
 const DOMAINS_LIST_QUERY = `query DomainsList { dnsDomainsList { id domain slug } }`;
 const DOMAIN_BY_SLUG_QUERY = `
@@ -52,6 +54,20 @@ const SECURITY_PACKAGES_QUERY = `query SecurityPackages { securityPackagesList {
 const SAVE_JSON_TAB_MUTATION = `
   mutation SaveDnsDomainJsonTab($domainId: Int!, $field: String!, $payloadJson: String!) {
     saveDnsDomainJsonTab(input: { domainId: $domainId field: $field payloadJson: $payloadJson }) { ok code message }
+  }
+`;
+const LINK_DOMAIN_MUTATION = `
+  mutation LinkDomainToCurrentUser($domain: String!, $force: Boolean) {
+    linkDomainToCurrentUser(input: { domain: $domain, force: $force }) {
+      ok code message domainId domain slug
+    }
+  }
+`;
+const ADD_DOMAIN_MUTATION = `
+  mutation AddDomainToCurrentUser($domain: String!, $force: Boolean) {
+    addDomainToCurrentUser(input: { domain: $domain, force: $force }) {
+      ok code message domainId domain slug
+    }
   }
 `;
 
@@ -121,6 +137,56 @@ export async function wpSaveDomainJsonTab(endpoint: string, authToken: string, i
     const result = json.data?.saveDnsDomainJsonTab;
     if (!result?.ok) return { ok: false, status: 400, message: result?.message ?? "Luu that bai." };
     return { ok: true, message: result.message ?? "Da luu." };
+  } catch {
+    return { ok: false, status: 502, message: "Loi goi WordPress GraphQL." };
+  }
+}
+
+export async function wpLinkDomainToCurrentUser(
+  endpoint: string,
+  authToken: string,
+  input: { domain: string; force?: boolean },
+): Promise<{ ok: true; domainId: number; domain: string; slug: string; code: string; message: string } | { ok: false; status: number; message: string; code?: string }> {
+  try {
+    const json = await wpGraphql<LinkDomainResponse>(endpoint, authToken, LINK_DOMAIN_MUTATION, input);
+    if (json.errors?.length) return { ok: false, status: 400, message: json.errors.map((e) => e.message).join(" ") };
+    const payload = json.data?.linkDomainToCurrentUser;
+    if (!payload?.ok) {
+      return { ok: false, status: 400, code: payload?.code ?? "UNKNOWN", message: payload?.message ?? "Lien ket that bai." };
+    }
+    return {
+      ok: true,
+      code: payload.code ?? "OK",
+      message: payload.message ?? "Da lien ket.",
+      domainId: payload.domainId ?? 0,
+      domain: payload.domain ?? input.domain,
+      slug: payload.slug ?? "",
+    };
+  } catch {
+    return { ok: false, status: 502, message: "Loi goi WordPress GraphQL." };
+  }
+}
+
+export async function wpAddDomainToCurrentUser(
+  endpoint: string,
+  authToken: string,
+  input: { domain: string; force?: boolean },
+): Promise<{ ok: true; domainId: number; domain: string; slug: string; code: string; message: string } | { ok: false; status: number; message: string; code?: string }> {
+  try {
+    const json = await wpGraphql<AddDomainResponse>(endpoint, authToken, ADD_DOMAIN_MUTATION, input);
+    if (json.errors?.length) return { ok: false, status: 400, message: json.errors.map((e) => e.message).join(" ") };
+    const payload = json.data?.addDomainToCurrentUser;
+    if (!payload?.ok) {
+      return { ok: false, status: 400, code: payload?.code ?? "UNKNOWN", message: payload?.message ?? "Them ten mien that bai." };
+    }
+    return {
+      ok: true,
+      code: payload.code ?? "OK",
+      message: payload.message ?? "Da them ten mien.",
+      domainId: payload.domainId ?? 0,
+      domain: payload.domain ?? input.domain,
+      slug: payload.slug ?? "",
+    };
   } catch {
     return { ok: false, status: 502, message: "Loi goi WordPress GraphQL." };
   }

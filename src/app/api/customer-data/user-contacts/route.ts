@@ -34,17 +34,13 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const contactType = url.searchParams.get("contactType") ?? undefined;
   const domainId = parseOptionalPositiveInt(url.searchParams.get("domainId"));
-  const debug = url.searchParams.get("debug") === "1";
   const result = await wpGetMyUserContactsV2(endpoint, token, {
     contactType,
     ...(typeof domainId === "number" ? { domainId } : {}),
   });
 
   if (!result.ok) {
-    return NextResponse.json(
-      { message: result.message, ...(debug && result.debug ? { debug: result.debug } : {}) },
-      { status: result.status },
-    );
+    return NextResponse.json({ message: result.message }, { status: result.status });
   }
 
   return NextResponse.json({ items: result.items });

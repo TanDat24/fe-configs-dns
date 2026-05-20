@@ -64,3 +64,25 @@ export async function saveDomainOverviewFields(input: {
 
   return { message: "Da luu thong tin tong quan." };
 }
+
+export async function linkDomainToCurrentUser(input: { domain: string; force?: boolean }): Promise<{
+  ok: boolean;
+  code?: string;
+  message?: string;
+  domainId?: number;
+  domain?: string;
+  slug?: string;
+}> {
+  return apiJson("/api/domain/link", { method: "POST", json: input });
+}
+
+export async function addDomainToCurrentUser(input: { domain: string; force?: boolean }): Promise<{
+  ok: boolean;
+  code?: string;
+  message?: string;
+  domainId?: number;
+  domain?: string;
+  slug?: string;
+}> {
+  return apiJson("/api/domain/add", { method: "POST", json: input });
+}

@@ -1,9 +1,11 @@
 import { changePassword } from "@/lib/api/auth";
 import {
+  addDomainToCurrentUser,
   getDnsTemplates,
   getDomainConfig,
   getDomainsList,
   getSecurityPackages,
+  linkDomainToCurrentUser,
   saveDomainJsonTab,
   saveDomainOverviewFields,
   type DomainOption,
@@ -79,4 +81,28 @@ export async function updateMyPassword(input: {
   confirmPassword: string;
 }): Promise<void> {
   await changePassword(input);
+}
+
+export async function linkDomainToMe(input: { domain: string; force?: boolean }): Promise<{
+  domainId?: number;
+  domain?: string;
+  slug?: string;
+}> {
+  const result = await linkDomainToCurrentUser(input);
+  if (!result.ok) {
+    throw new Error(result.message || "Lien ket ten mien that bai.");
+  }
+  return { domainId: result.domainId, domain: result.domain, slug: result.slug };
+}
+
+export async function addDomainToMe(input: { domain: string; force?: boolean }): Promise<{
+  domainId?: number;
+  domain?: string;
+  slug?: string;
+}> {
+  const result = await addDomainToCurrentUser(input);
+  if (!result.ok) {
+    throw new Error(result.message || "Them ten mien that bai.");
+  }
+  return { domainId: result.domainId, domain: result.domain, slug: result.slug };
 }

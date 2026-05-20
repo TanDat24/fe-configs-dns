@@ -263,8 +263,8 @@ function LoginForm({ nextPath, onSuccess }: { nextPath: string; onSuccess: () =>
           return;
         }
         const result = await loginByDomain({ domain, password });
-        if (!result.authToken) {
-          throw new ApiError("Không nhận được token.", 500, result);
+        if (!result.ok) {
+          throw new ApiError("Đăng nhập thất bại.", 500, result);
         }
         setDomainWrongAttempts(0);
         setDomainLockUntil(null);
@@ -398,7 +398,7 @@ function RegisterForm({
     setLoading(true);
     try {
       const result = await register({ username, email, password, confirmPassword });
-      const autoLogin = !!result.authToken;
+      const autoLogin = result.ok === true;
       if (autoLogin) {
         router.push(postLoginPath(nextPath));
         router.refresh();

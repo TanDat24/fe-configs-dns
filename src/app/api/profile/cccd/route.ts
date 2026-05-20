@@ -96,8 +96,8 @@ export async function POST(request: Request) {
 
   const responseBody: UploadCccdResponseDto = {
     message: "Da tai len day du mat truoc va mat sau CCCD.",
-    frontFileUrl: frontResult.fileUrl,
-    backFileUrl: backResult.fileUrl,
+    frontImagePath: "/api/profile/cccd-image?side=front",
+    backImagePath: "/api/profile/cccd-image?side=back",
   };
   return NextResponse.json(responseBody);
 }

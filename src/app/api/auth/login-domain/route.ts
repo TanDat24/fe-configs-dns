@@ -77,14 +77,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!checkResult.domainExists) {
-      return errorResponse("Ten mien khong ton tai trong he thong.", 404, requestId);
-    }
-
+    // Security fix: always proceed to password step — no domain enumeration.
     const checkResponse: LoginDomainResponseDto = {
       domainExists: true,
       domain: payload.domain,
-      message: "Ten mien hop le. Vui long nhap mat khau.",
+      message: "Vui long nhap mat khau.",
     };
     return NextResponse.json(checkResponse);
   }
@@ -106,7 +103,7 @@ export async function POST(request: Request) {
   }
 
   const responseBody: LoginDomainResponseDto = {
-    authToken: result.authToken,
+    ok: true,
     username: result.username,
     domain: result.domain,
   };

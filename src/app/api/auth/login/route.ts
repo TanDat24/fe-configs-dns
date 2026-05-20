@@ -60,7 +60,8 @@ export async function POST(request: Request) {
     return errorResponse(sanitizeApiMessage(result.status, "Dang nhap that bai."), result.status, requestId);
   }
 
-  const responseBody: LoginResponseDto = { authToken: result.authToken };
+  // Security fix: JWT only in httpOnly cookies — not exposed in JSON response body.
+  const responseBody: LoginResponseDto = { ok: true };
   const res = NextResponse.json(responseBody);
   applyAuthSessionCookies(res, { authToken: result.authToken, refreshToken: result.refreshToken }, request);
   return res;

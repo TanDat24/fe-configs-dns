@@ -549,7 +549,7 @@ export async function wpGetMyUserContactsV2(
   input?: { contactType?: string; domainId?: number },
 ): Promise<
   | { ok: true; items: UserContactNode[] }
-  | { ok: false; status: number; message: string; debug?: { httpStatus: number; body: string } }
+  | { ok: false; status: number; message: string }
 > {
   try {
     const res = await fetch(endpoint, {
@@ -575,7 +575,6 @@ export async function wpGetMyUserContactsV2(
         ok: false,
         status: 400,
         message: json.errors.map((e) => e.message).join(" "),
-        debug: { httpStatus: res.status, body: text.slice(0, 2000) },
       };
     }
     return { ok: true, items: json.data?.myUserContacts ?? [] };

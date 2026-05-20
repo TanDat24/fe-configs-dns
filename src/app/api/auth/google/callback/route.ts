@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { applyAuthSessionCookies } from "@/lib/auth-cookie";
-import { getPublicOrigin } from "@/lib/server/public-origin";
+import { getOAuthRedirectUri, getPublicOrigin } from "@/lib/server/public-origin";
 import { wpLoginWithGoogle, wpSocialAccountExists } from "@/lib/server/wp-register";
 import { verifySignedOAuthState } from "@/lib/server/oauth-state";
 
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
   const endpoint = process.env.WP_GRAPHQL_URL;
   if (!endpoint) return logoutWithError("config");
 
-  const redirectUri = `${origin}/api/auth/google/callback`;
+  const redirectUri = getOAuthRedirectUri(request, "/api/auth/google/callback");
   const idToken = await exchangeCodeForIdToken(code, redirectUri);
   if (!idToken) return logoutWithError("google_token");
 
@@ -68,9 +68,8 @@ export async function GET(request: Request) {
   const nonce = typeof payload?.nonce === "string" ? payload.nonce : "";
   if (!nonce || nonce !== verifiedState.nonce) return logoutWithError("google_nonce");
 
-  const email = typeof payload?.email === "string" ? payload.email : "";
-  if (email !== "") {
-    const exists = await wpSocialAccountExists(endpoint, { provider: "google", email });
+  if (idToken !== "") {
+    const exists = await wpSocialAccountExists(endpoint, { provider: "google", idToken });
     if ((!exists.ok || !exists.exists) && !verifiedState.consent) {
       const back = new URL("/logout", origin);
       back.searchParams.set("error", "consent_required_google");

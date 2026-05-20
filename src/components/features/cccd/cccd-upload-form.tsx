@@ -16,8 +16,8 @@ export function CccdUploadForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [frontFileUrl, setFrontFileUrl] = useState<string | null>(null);
-  const [backFileUrl, setBackFileUrl] = useState<string | null>(null);
+  const [frontImagePath, setFrontImagePath] = useState<string | null>(null);
+  const [backImagePath, setBackImagePath] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [uploadLocked, setUploadLocked] = useState(false);
   const [lockMessage, setLockMessage] = useState<string | null>(null);
@@ -48,8 +48,8 @@ export function CccdUploadForm() {
   function onPickFile(side: "front" | "back", nextFile: File | null) {
     setError(null);
     setSuccess(null);
-    setFrontFileUrl(null);
-    setBackFileUrl(null);
+    setFrontImagePath(null);
+    setBackImagePath(null);
     if (side === "front") {
       setFrontFile(nextFile);
       if (frontPreviewUrl) {
@@ -78,8 +78,8 @@ export function CccdUploadForm() {
     try {
       const result = await uploadMyCccd(frontFile, backFile);
       setSuccess(result.message || "Đã tải lên đầy đủ CCCD thành công.");
-      setFrontFileUrl(result.frontFileUrl);
-      setBackFileUrl(result.backFileUrl);
+      setFrontImagePath(result.frontImagePath);
+      setBackImagePath(result.backImagePath);
       setUploadLocked(true);
       setLockMessage("CCCD đang chờ duyệt. Bạn sẽ được chuyển về bảng điều khiển.");
       setTimeout(() => {
@@ -174,17 +174,17 @@ export function CccdUploadForm() {
       {success ? (
         <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
           {success}
-          {frontFileUrl || backFileUrl ? (
+          {frontImagePath || backImagePath ? (
             <>
               {" "}
-              {frontFileUrl ? (
-                <a href={frontFileUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+              {frontImagePath ? (
+                <a href={frontImagePath} target="_blank" rel="noreferrer" className="underline underline-offset-2">
                   Mặt trước
                 </a>
               ) : null}
-              {frontFileUrl && backFileUrl ? " | " : ""}
-              {backFileUrl ? (
-                <a href={backFileUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+              {frontImagePath && backImagePath ? " | " : ""}
+              {backImagePath ? (
+                <a href={backImagePath} target="_blank" rel="noreferrer" className="underline underline-offset-2">
                   Mặt sau
                 </a>
               ) : null}
