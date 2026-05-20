@@ -16,6 +16,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Config DNS",
   description: "Quản lý cấu hình DNS",
+  icons: {
+    icon: "/logo-short.png",
+    shortcut: "/logo-short.png",
+    apple: "/logo-short.png",
+  },
   openGraph: {
     title: "Config DNS",
     description: "Quản lý cấu hình DNS",
