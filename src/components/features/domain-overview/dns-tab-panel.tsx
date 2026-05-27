@@ -215,7 +215,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
               key={label}
               type="button"
               onClick={() => { setActiveSidebar(index); setNotice(null); }}
-              className={cn("rounded-md px-3 py-2.5 text-left text-sm text-zinc-800 transition-colors", activeSidebar === index ? "bg-zinc-100 font-medium" : "hover:bg-zinc-50")}
+              className={cn("rounded-md px-3 py-2.5 text-left text-sm text-zinc-800 transition-colors cursor-pointer", activeSidebar === index ? "bg-zinc-100 font-medium" : "hover:bg-zinc-50")}
             >
               {label}
             </button>
@@ -241,14 +241,14 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
               <select
                 value={templateId}
                 onChange={(e) => setTemplateId(Number(e.target.value))}
-                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm cursor-pointer"
               >
                 <option value={0}>Chọn mẫu DNS</option>
                 {templates.map((tpl) => (
                   <option key={tpl.id} value={tpl.id}>{tpl.title}</option>
                 ))}
               </select>
-              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" onClick={() => {
+              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm cursor-pointer" onClick={() => {
                 if (!selectedTemplate) {
                   showNotice("error", "Chưa chọn mẫu DNS. Vui lòng chọn mẫu từ danh sách.");
                   return;
@@ -256,12 +256,12 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                 setRecords(selectedTemplate.records.length ? selectedTemplate.records : [{ ...DEFAULT_RECORD }]);
                 showNotice("ok", `Đã áp dụng mẫu: ${selectedTemplate.title}`);
               }}>Bản ghi mẫu</button>
-              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" onClick={() => {
+              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm cursor-pointer" onClick={() => {
                 triggerDownload(`dns-records-${data?.domain ?? "domain"}.csv`, toCsv(records));
                 showNotice("ok", `Đã xuất ${records.length} bản ghi ra tệp CSV.`);
               }}>Xuất tệp CSV</button>
-              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" onClick={() => csvInputRef.current?.click()}>Nhập tệp CSV</button>
-              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" onClick={() => {
+              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm cursor-pointer" onClick={() => csvInputRef.current?.click()}>Nhập tệp CSV</button>
+              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm cursor-pointer" onClick={() => {
                 triggerDownload("dns-records-mau.csv", toCsv(SAMPLE_CSV_RECORDS));
                 showNotice("ok", "Đã tải tệp CSV mẫu với 9 bản ghi ví dụ.");
               }}>Tải CSV mẫu</button>
@@ -286,11 +286,32 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
               </div>
               <button
                 type="button"
-                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer"
                 onClick={() => setDeleteAllOpen(true)}
               >
                 Xoá tất cả
               </button>
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm cursor-pointer"
+                  onClick={() => setRecords((prev) => [...prev, { ...DEFAULT_RECORD }])}
+                >
+                  Thêm bản ghi
+                </button>
+                <button
+                  type="button"
+                  disabled={savingField === "dns_records_json"}
+                  onClick={async () => {
+                    const errors = validateDnsRecords(records);
+                    if (errors.length) { showNotice("error", errors[0]); return; }
+                    try { await onSaveTab("dns_records_json", records); showNotice("ok", "Đã lưu cấu hình bản ghi DNS."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được bản ghi DNS."); }
+                  }}
+                  className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {savingField === "dns_records_json" ? "Đang lưu..." : "Lưu cấu hình"}
+                </button>
+              </div>
             </div>
 
             {deleteAllOpen ? (
@@ -370,7 +391,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                         <div className="flex flex-nowrap items-center gap-2">
                           <button
                             type="button"
-                            className="whitespace-nowrap rounded-md border border-zinc-300 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
+                            className="whitespace-nowrap rounded-md border border-zinc-300 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50 cursor-pointer"
                             onClick={async () => {
                               const errors = validateDnsRecords(records);
                               if (errors.length) {
@@ -389,7 +410,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                           </button>
                           <button
                             type="button"
-                            className="whitespace-nowrap rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                            className="whitespace-nowrap rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50 cursor-pointer"
                             onClick={() => {
                               const srcIndex = records.indexOf(row);
                               if (srcIndex < 0) return;
@@ -405,13 +426,13 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                 </tbody>
               </table>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" onClick={() => setRecords((prev) => [...prev, { ...DEFAULT_RECORD }])}>Thêm bản ghi</button>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm cursor-pointer" onClick={() => setRecords((prev) => [...prev, { ...DEFAULT_RECORD }])}>Thêm bản ghi</button>
               <button type="button" disabled={savingField === "dns_records_json"} onClick={async () => {
                 const errors = validateDnsRecords(records);
                 if (errors.length) { showNotice("error", errors[0]); return; }
                 try { await onSaveTab("dns_records_json", records); showNotice("ok", "Đã lưu cấu hình bản ghi DNS."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được bản ghi DNS."); }
-              }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{savingField === "dns_records_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
+              }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer">{savingField === "dns_records_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
             </div>
           </div>
         ) : null}
@@ -424,13 +445,13 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
               {nameServers.map((ns, i) => (
                 <div key={`${i}-${ns}`} className="flex gap-2">
                   <input className={inputCellClass} placeholder={`Name server ${i + 1}`} value={ns} onChange={(e) => { const next = [...nameServers]; next[i] = e.target.value; setNameServers(next); }} />
-                  <button type="button" className="rounded-md border border-zinc-300 px-3 text-sm text-red-600 hover:bg-red-50" onClick={() => setNameServers((prev) => prev.filter((_, idx) => idx !== i))}>Xoá</button>
+                  <button type="button" className="rounded-md border border-zinc-300 px-3 text-sm text-red-600 hover:bg-red-50 cursor-pointer" onClick={() => setNameServers((prev) => prev.filter((_, idx) => idx !== i))}>Xoá</button>
                 </div>
               ))}
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" onClick={() => setNameServers((p) => [...p, ""])}>Thêm</button>
-              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" onClick={() => { setNameServers([...DEFAULT_NAME_SERVERS]); showNotice("ok", "Đã áp dụng name server mặc định."); }}>Sử dụng name server mặc định</button>
+              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm cursor-pointer" onClick={() => setNameServers((p) => [...p, ""])}>Thêm</button>
+              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm cursor-pointer" onClick={() => { setNameServers([...DEFAULT_NAME_SERVERS]); showNotice("ok", "Đã áp dụng name server mặc định."); }}>Sử dụng name server mặc định</button>
               <button type="button" disabled={savingField === "name_servers_json"} onClick={async () => {
                 const cleaned = nameServers.map((ns) => ns.trim());
                 if (cleaned.some((ns) => !ns)) {
@@ -438,7 +459,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                   return;
                 }
                 try { await onSaveTab("name_servers_json", cleaned); showNotice("ok", "Đã lưu danh sách name server."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được name server."); }
-              }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{savingField === "name_servers_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
+              }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer">{savingField === "name_servers_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
             </div>
           </div>
         ) : null}
@@ -451,11 +472,11 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
               <div key={i} className="grid gap-2 rounded-md border border-zinc-200 p-3 sm:grid-cols-3">
                 <input className={inputCellClass} placeholder="Tên name server" value={row.name} onChange={(e) => { const next = [...children]; next[i] = { ...next[i], name: e.target.value }; setChildren(next); }} />
                 <input className={inputCellClass} placeholder="Địa chỉ IPv4" value={row.ipv4} onChange={(e) => { const next = [...children]; next[i] = { ...next[i], ipv4: e.target.value }; setChildren(next); }} />
-                <div className="flex gap-2"><input className={inputCellClass} placeholder="Địa chỉ IPv6 (tuỳ chọn)" value={row.ipv6} onChange={(e) => { const next = [...children]; next[i] = { ...next[i], ipv6: e.target.value }; setChildren(next); }} /><button type="button" className="rounded-md border border-zinc-300 px-3 text-sm text-red-600 hover:bg-red-50" onClick={() => setChildren((prev) => prev.filter((_, idx) => idx !== i))}>Xoá</button></div>
+                <div className="flex gap-2"><input className={inputCellClass} placeholder="Địa chỉ IPv6 (tuỳ chọn)" value={row.ipv6} onChange={(e) => { const next = [...children]; next[i] = { ...next[i], ipv6: e.target.value }; setChildren(next); }} /><button type="button" className="rounded-md border border-zinc-300 px-3 text-sm text-red-600 hover:bg-red-50 cursor-pointer" onClick={() => setChildren((prev) => prev.filter((_, idx) => idx !== i))}>Xoá</button></div>
               </div>
             ))}
             <div className="flex flex-wrap gap-2">
-              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm" onClick={() => setChildren((p) => [...p, { ...DEFAULT_CHILD }])}>Thêm</button>
+              <button type="button" className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm cursor-pointer" onClick={() => setChildren((p) => [...p, { ...DEFAULT_CHILD }])}>Thêm</button>
               <button type="button" disabled={savingField === "child_dns_json"} onClick={async () => {
                 const errors: string[] = [];
                 children.forEach((row, i) => {
@@ -467,7 +488,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                 });
                 if (errors.length) { showNotice("error", errors[0]); return; }
                 try { await onSaveTab("child_dns_json", children); showNotice("ok", "Đã lưu cấu hình DNS con phụ."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được DNS con phụ."); }
-              }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{savingField === "child_dns_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
+              }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer">{savingField === "child_dns_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
             </div>
           </div>
         ) : null}
@@ -479,11 +500,11 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
             {forwards.map((row, i) => (
               <div key={i} className="grid gap-2 rounded-md border border-zinc-200 p-3 sm:grid-cols-2">
                 <input className={inputCellClass} placeholder="Email nguồn (VD: info)" value={row.source} onChange={(e) => { const next = [...forwards]; next[i] = { ...next[i], source: e.target.value }; setForwards(next); }} />
-                <div className="flex gap-2"><input className={inputCellClass} placeholder="Email đích (VD: admin@gmail.com)" value={row.target} onChange={(e) => { const next = [...forwards]; next[i] = { ...next[i], target: e.target.value }; setForwards(next); }} /><button type="button" className="rounded-md border border-zinc-300 px-3 text-sm text-red-600 hover:bg-red-50" onClick={() => setForwards((prev) => prev.filter((_, idx) => idx !== i))}>Xoá</button></div>
+                <div className="flex gap-2"><input className={inputCellClass} placeholder="Email đích (VD: admin@gmail.com)" value={row.target} onChange={(e) => { const next = [...forwards]; next[i] = { ...next[i], target: e.target.value }; setForwards(next); }} /><button type="button" className="rounded-md border border-zinc-300 px-3 text-sm text-red-600 hover:bg-red-50 cursor-pointer" onClick={() => setForwards((prev) => prev.filter((_, idx) => idx !== i))}>Xoá</button></div>
               </div>
             ))}
             <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={forwards.length >= 10} className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm disabled:opacity-60" onClick={() => setForwards((p) => [...p, { ...DEFAULT_FORWARD }])}>Thêm</button>
+              <button type="button" disabled={forwards.length >= 10} className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer" onClick={() => setForwards((p) => [...p, { ...DEFAULT_FORWARD }])}>Thêm</button>
               <button type="button" disabled={savingField === "email_forwards_json"} onClick={async () => {
                 const normalized = forwards.map((f) => ({ source: f.source.trim(), target: f.target.trim() }));
                 const errors: string[] = [];
@@ -495,7 +516,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                 if (errors.length) { showNotice("error", errors[0]); return; }
                 const filtered = normalized.filter((f) => f.source || f.target);
                 try { await onSaveTab("email_forwards_json", filtered); showNotice("ok", "Đã lưu cấu hình email chuyển tiếp."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được email chuyển tiếp."); }
-              }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{savingField === "email_forwards_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
+              }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer">{savingField === "email_forwards_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
             </div>
           </div>
         ) : null}
