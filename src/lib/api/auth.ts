@@ -1,4 +1,5 @@
 import { apiJson, ApiError, tunnelBypassHeaders } from "./client";
+import { normalizeAuthDomain } from "@/lib/domain-parser";
 import type {
   ChangePasswordRequestDto,
   ChangePasswordResponseDto,
@@ -46,7 +47,7 @@ export async function loginByDomain(
     {
       method: "POST",
       json: {
-        domain: input.domain.trim(),
+        domain: normalizeAuthDomain(input.domain),
         ...(input.password ? { password: input.password } : {}),
       },
     },

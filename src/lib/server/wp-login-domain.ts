@@ -1,4 +1,5 @@
 import "server-only";
+import { normalizeAuthDomain } from "@/lib/domain-parser";
 
 const LOGIN_WITH_DOMAIN_MUTATION = `
   mutation LoginWithDomain($domain: String!, $password: String!) {
@@ -79,10 +80,7 @@ export type WpLoginDomainResult =
 const DOMAIN_CHECK_FALLBACK_PASSWORD = "__domain_check_only__";
 
 function normalizeDomain(value: string): string {
-  const raw = value.trim().toLowerCase();
-  const noProtocol = raw.replace(/^https?:\/\//, "");
-  const noPath = noProtocol.split("/")[0] ?? "";
-  return noPath.replace(/^www\./, "");
+  return normalizeAuthDomain(value);
 }
 
 function normalizeEmail(value: string): string {
@@ -100,7 +98,11 @@ function isDomainMissingMessage(message: string): boolean {
 }
 
 function isWrongPasswordMessage(message: string): boolean {
-  return /(mat khau|mật khẩu|password).*(sai|khong dung|không đúng|invalid|incorrect|wrong)/i.test(message);
+  return (
+    /(mat khau|mật khẩu|password).*(sai|khong dung|không đúng|invalid|incorrect|wrong)/i.test(
+      message,
+    ) || /thong tin dang nhap khong dung/i.test(message)
+  );
 }
 
 export async function wpCheckDomainExists(
@@ -227,6 +229,7 @@ export async function wpGraphqlLoginWithDomain(
   domain: string,
   password: string,
 ): Promise<WpLoginDomainResult> {
+  const normalizedDomain = normalizeDomain(domain);
   let wpRes: Response;
   try {
     wpRes = await fetch(endpoint, {
@@ -234,7 +237,7 @@ export async function wpGraphqlLoginWithDomain(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         query: LOGIN_WITH_DOMAIN_MUTATION,
-        variables: { domain, password },
+        variables: { domain: normalizedDomain, password },
       }),
       cache: "no-store",
     });

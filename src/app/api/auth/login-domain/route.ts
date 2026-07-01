@@ -13,10 +13,7 @@ import {
   verifySameOriginCsrf,
 } from "@/lib/server/request-security";
 import { loginDomainSchema, parseBodyOrThrow } from "@/lib/server/validators";
-import {
-  wpCheckDomainExists,
-  wpGraphqlLoginWithDomain,
-} from "@/lib/server/wp-login-domain";
+import { wpGraphqlLoginWithDomain } from "@/lib/server/wp-login-domain";
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
@@ -65,19 +62,6 @@ export async function POST(request: Request) {
   }
 
   if (!payload.password) {
-    const checkResult = await wpCheckDomainExists(endpoint, payload.domain);
-    if (!checkResult.ok) {
-      logApiError(requestId, "/api/auth/login-domain", checkResult.message, {
-        status: checkResult.status,
-      });
-      return errorResponse(
-        sanitizeApiMessage(checkResult.status, checkResult.message || "Khong kiem tra duoc ten mien."),
-        checkResult.status,
-        requestId,
-      );
-    }
-
-    // Security fix: always proceed to password step — no domain enumeration.
     const checkResponse: LoginDomainResponseDto = {
       domainExists: true,
       domain: payload.domain,

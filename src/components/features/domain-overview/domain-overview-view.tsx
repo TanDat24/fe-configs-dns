@@ -2,6 +2,7 @@
 
 import { DnsTabPanel } from "./dns-tab-panel";
 import { DOMAIN_TAB_IDS, DomainSubnav, type DomainTabId } from "./domain-subnav";
+import { DomainSearchSelect } from "./domain-search-select";
 import { OverviewTongQuanPanel } from "./overview-tong-quan-panel";
 import { SecurityTabPanel } from "./security-tab-panel";
 import { useEffect, useState } from "react";
@@ -219,18 +220,13 @@ export function DomainOverviewView({ initialTab = "overview" }: DomainOverviewVi
       {domains.length > 0 ? (
         <div className="mb-2 flex flex-wrap items-center gap-3 py-2">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-zinc-600">Tên miền:</span>
-            <select
+            <span className="shrink-0 text-sm text-zinc-600">Tên miền:</span>
+            <DomainSearchSelect
+              domains={domains}
               value={selectedSlug}
-              onChange={(e) => setSelectedSlug(e.target.value)}
-              className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-            >
-              {domains.map((d) => (
-                <option key={d.id} value={d.slug}>
-                  {d.domain}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedSlug}
+              disabled={loading || linkingDomain}
+            />
           </div>
           <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
             <input

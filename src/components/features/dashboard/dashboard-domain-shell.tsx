@@ -1,6 +1,7 @@
 "use client";
 
 import { DomainSubnav, type DomainTabId } from "@/components/features/domain-overview/domain-subnav";
+import { DomainSearchSelect } from "@/components/features/domain-overview/domain-search-select";
 import { useDomainOverview } from "@/hooks";
 
 function PanelSkeleton({ rows = 4 }: { rows?: number }) {
@@ -68,18 +69,13 @@ export function DashboardDomainShell({
     <div className="flex min-h-0 flex-1 flex-col font-sans">
       {domains.length > 0 ? (
         <div className="mb-2 flex items-center gap-2 py-2">
-          <span className="text-sm text-zinc-600">Tên miền:</span>
-          <select
+          <span className="shrink-0 text-sm text-zinc-600">Tên miền:</span>
+          <DomainSearchSelect
+            domains={domains}
             value={selectedSlug}
-            onChange={(e) => setSelectedSlug(e.target.value)}
-            className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-          >
-            {domains.map((d) => (
-              <option key={d.id} value={d.slug}>
-                {d.domain}
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedSlug}
+            disabled={loading}
+          />
         </div>
       ) : null}
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeAuthDomain } from "@/lib/domain-parser";
 import type { DomainJsonField, DomainOverviewField } from "@/lib/domain-types";
 
 const USER_CONTACT_TYPES = ["owner", "technical", "management", "billing"] as const;
@@ -43,8 +44,9 @@ export const loginDomainSchema = z.object({
     .regex(
       /^(?:https?:\/\/)?(?:www\.)?[a-z0-9][a-z0-9.\-]*\.[a-z]{2,}(?:\/.*)?$/i,
       "Ten mien khong hop le.",
-    ),
-  password: z.string().min(1, "Vui long nhap mat khau.").optional(),
+    )
+    .transform(normalizeAuthDomain),
+  password: z.string().trim().min(1, "Vui long nhap mat khau.").optional(),
 });
 
 export const forgotPasswordSchema = z.object({
@@ -95,7 +97,8 @@ export const linkDomainSchema = z.object({
     .regex(
       /^(?:https?:\/\/)?(?:www\.)?[a-z0-9][a-z0-9.\-]*\.[a-z]{2,}(?:\/.*)?$/i,
       "Ten mien khong hop le.",
-    ),
+    )
+    .transform(normalizeAuthDomain),
   force: z.boolean().optional(),
 });
 

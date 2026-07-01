@@ -242,8 +242,10 @@ function LoginForm({ nextPath, onSuccess }: { nextPath: string; onSuccess: () =>
   }, [domainLockUntil]);
 
   function isWrongDomainPasswordError(message: string): boolean {
-    return /(mat khau|mật khẩu|password).*(sai|khong dung|không đúng|invalid|incorrect|wrong)/i.test(
-      message,
+    return (
+      /(mat khau|mật khẩu|password).*(sai|khong dung|không đúng|invalid|incorrect|wrong)/i.test(
+        message,
+      ) || /thong tin dang nhap khong dung/i.test(message)
     );
   }
 

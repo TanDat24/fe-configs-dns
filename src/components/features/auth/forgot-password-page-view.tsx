@@ -90,7 +90,7 @@ export function ForgotPasswordPageView() {
                 value={email}
                 onChange={(ev) => setEmail(ev.target.value)}
                 disabled={loading}
-                placeholder="Tên người dùng hoặc email"
+                placeholder="Domain hoặc email hoặc tên người dùng"
                 className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 transition focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/10 disabled:opacity-60"
               />
             </div>

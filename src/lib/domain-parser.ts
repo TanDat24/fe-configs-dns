@@ -28,6 +28,14 @@ type DomainRaw = {
   two_factor_enabled?: string | null;
 };
 
+/** Match backend dns_domain_normalize() for auth / link flows. */
+export function normalizeAuthDomain(value: string): string {
+  const raw = value.trim().toLowerCase();
+  const noProtocol = raw.replace(/^https?:\/\//, "");
+  const noPath = noProtocol.split("/")[0] ?? "";
+  return noPath.replace(/^www\./, "");
+}
+
 export function parseJsonArray<T>(raw: string | null | undefined): T[] {
   if (!raw) return [];
   try {

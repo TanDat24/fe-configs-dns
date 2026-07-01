@@ -50,14 +50,14 @@ export function DomainSubnav({
 
   return (
     <div className="overflow-hidden rounded-t-lg">
-      <div
+      {/* <div
         className="px-4 py-3 sm:px-6"
         style={{ backgroundColor: BG_DOMAIN }}
-      >
+      >  
         <p className="text-left text-base font-semibold text-zinc-900">
           {domainName}
         </p>
-      </div>
+      </div> */}
 
       <div style={{ backgroundColor: BG_TABS }}>
         <div className="px-4 py-2.5 sm:px-6">
