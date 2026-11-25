@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import { login, loginByDomain, register } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/client";
 
@@ -11,8 +11,6 @@ const BTN_TEAL = "bg-[#A8DADC]";
 
 type Tab = "login" | "register";
 type LoginMode = "account" | "domain";
-const DOMAIN_MAX_FAILED_ATTEMPTS = 3;
-const DOMAIN_LOCK_MS = 30_000;
 
 function postLoginPath(nextParam: string | null): string {
   if (!nextParam) return "/";
@@ -127,6 +125,8 @@ function Field({
   disabled,
   autoComplete,
   placeholder,
+  inputMode,
+  maxLength,
 }: {
   id: string;
   label?: string;
@@ -136,6 +136,8 @@ function Field({
   disabled: boolean;
   autoComplete?: string;
   placeholder?: string;
+  inputMode?: "numeric";
+  maxLength?: number;
 }) {
   const [showPw, setShowPw] = useState(false);
   const isPassword = type === "password";
@@ -152,6 +154,8 @@ function Field({
           name={id}
           type={isPassword ? (showPw ? "text" : "password") : type}
           autoComplete={autoComplete}
+          inputMode={inputMode}
+          maxLength={maxLength}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
@@ -203,174 +207,133 @@ function LoginModeToggle({
 function LoginForm({ nextPath, onSuccess }: { nextPath: string; onSuccess: () => void }) {
   const router = useRouter();
   const [mode, setMode] = useState<LoginMode>("domain");
+  const [stage, setStage] = useState<"domain" | "otp" | "password">("domain");
   const [username, setUsername] = useState("");
   const [domain, setDomain] = useState("");
   const [password, setPassword] = useState("");
-  const [domainChecked, setDomainChecked] = useState(false);
-  const [domainWrongAttempts, setDomainWrongAttempts] = useState(0);
-  const [domainLockUntil, setDomainLockUntil] = useState<number | null>(null);
-  const [lockTick, setLockTick] = useState(Date.now());
+  const [code, setCode] = useState("");
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [retryAt, setRetryAt] = useState(0);
+  const [clock, setClock] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const lockRemainingSec = useMemo(() => {
-    if (!domainLockUntil) return 0;
-    return Math.max(0, Math.ceil((domainLockUntil - lockTick) / 1000));
-  }, [domainLockUntil, lockTick]);
-
-  const isDomainLocked = mode === "domain" && lockRemainingSec > 0;
-  const shouldShowForgotDomain =
-    mode === "domain" &&
-    domainChecked &&
-    (domainWrongAttempts >= DOMAIN_MAX_FAILED_ATTEMPTS || isDomainLocked);
+  const [message, setMessage] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const mounted = useRef(false);
+  const remaining = Math.max(0, Math.ceil((retryAt - clock) / 1000));
 
   useEffect(() => {
-    if (!domainLockUntil) return;
-    if (Date.now() >= domainLockUntil) {
-      setDomainLockUntil(null);
-      setDomainWrongAttempts(0);
-      return;
-    }
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  useEffect(() => {
+    if (retryAt <= Date.now()) return;
     const timer = window.setInterval(() => {
-      setLockTick(Date.now());
-      if (Date.now() >= domainLockUntil) {
-        setDomainLockUntil(null);
-        setDomainWrongAttempts(0);
-      }
+      const now = Date.now(); setClock(now);
+      if (now >= retryAt) window.clearInterval(timer);
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [domainLockUntil]);
+  }, [retryAt]);
 
-  function isWrongDomainPasswordError(message: string): boolean {
-    return (
-      /(mat khau|mật khẩu|password).*(sai|khong dung|không đúng|invalid|incorrect|wrong)/i.test(
-        message,
-      ) || /thong tin dang nhap khong dung/i.test(message)
-    );
+  function resetDomainFlow() {
+    setStage("domain"); setPassword(""); setCode(""); setChallengeId(null);
+    setError(null); setMessage(null); setRetryAt(0);
   }
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (isDomainLocked) {
-      setError(`Ban thu lai sau ${lockRemainingSec} giay.`);
-      return;
-    }
-    setError(null);
-    setLoading(true);
+  async function submit(resend = false) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setError(null); setLoading(true);
     try {
-      if (mode === "domain") {
-        if (!domainChecked) {
-          await loginByDomain({ domain });
-          setDomainChecked(true);
+      if (mode === "domain" && stage === "otp" && !resend && !challengeId) {
+        throw new Error("Phiên nhập mã không còn hợp lệ. Vui lòng gửi lại mã.");
+      }
+      if (mode === "account") {
+        await login({ username, password });
+      } else {
+        const result = stage === "password" && !resend
+          ? await loginByDomain({ action: "password", domain, password })
+          : stage === "otp" && !resend && challengeId
+            ? await loginByDomain({ action: "verify", domain, code, challengeId })
+            : await loginByDomain({ action: "start", domain });
+        if (!mounted.current) return;
+        if (result.step === "otp") {
+          setStage("otp"); setChallengeId(result.challengeId); setCode("");
+          const now = Date.now(); setClock(now); setRetryAt(now + result.retryAfterSec * 1000);
+          setMessage("Nếu tên miền liên kết với tài khoản có email đã xác minh, mã đăng nhập sẽ được gửi đến email đó. Mã có hiệu lực 5 phút.");
           return;
         }
-        const result = await loginByDomain({ domain, password });
-        if (!result.ok) {
-          throw new ApiError("Đăng nhập thất bại.", 500, result);
-        }
-        setDomainWrongAttempts(0);
-        setDomainLockUntil(null);
-      } else {
-        await login({ username, password });
+        if (!result.ok || result.step !== "authenticated") throw new Error("Đăng nhập chưa hoàn tất.");
       }
-      router.push(postLoginPath(nextPath));
-      router.refresh();
-      onSuccess();
+      if (!mounted.current) return;
+      router.push(postLoginPath(nextPath)); router.refresh(); onSuccess();
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : "Lỗi mạng. Thử lại sau.";
-      if (mode === "domain" && domainChecked && err instanceof ApiError && isWrongDomainPasswordError(message)) {
-        const nextAttempts = domainWrongAttempts + 1;
-        setDomainWrongAttempts(nextAttempts);
-        if (nextAttempts >= DOMAIN_MAX_FAILED_ATTEMPTS) {
-          const lockTo = Date.now() + DOMAIN_LOCK_MS;
-          setDomainLockUntil(lockTo);
-          setLockTick(Date.now());
-          setError("Ban nhap sai mat khau qua 3 lan. Vui long thu lai sau 30 giay.");
-        } else {
-          setError(message);
+      if (!mounted.current) return;
+      if (err instanceof ApiError && (err.status === 0 || err.status >= 500)) {
+        if (mode === "domain" && (stage === "domain" || resend)) {
+          // The mail may already have been sent, but its challenge response was lost.
+          const now = Date.now(); setClock(now); setRetryAt(now + 60_000);
+          setStage("domain"); setChallengeId(null); setCode(""); setMessage(null);
         }
+        setError("Chưa nhận được kết quả. Không tự động gửi lại yêu cầu; vui lòng kiểm tra hộp thư hoặc thử lại sau.");
       } else {
-        setError(message);
+        setError(err instanceof Error ? err.message : "Không thể đăng nhập. Vui lòng thử lại sau.");
       }
     } finally {
-      setLoading(false);
+      inFlight.current = false;
+      if (mounted.current) setLoading(false);
     }
   }
 
-  function handleModeChange(next: LoginMode) {
-    if (next === mode) return;
-    setMode(next);
-    setError(null);
-    setPassword("");
-    setDomainChecked(false);
-    setDomainWrongAttempts(0);
-    setDomainLockUntil(null);
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (mode === "domain" && stage === "otp" && !/^[0-9]{6}$/.test(code)) {
+      setError("Vui lòng nhập mã đăng nhập gồm 6 chữ số."); return;
+    }
+    void submit();
   }
 
   return (
     <form className="space-y-3" onSubmit={handleSubmit}>
-      <LoginModeToggle mode={mode} onChange={handleModeChange} disabled={loading} />
+      <LoginModeToggle mode={mode} disabled={loading} onChange={next => {
+        if (next !== mode) { setMode(next); resetDomainFlow(); }
+      }} />
       {error && <Alert type="error">{error}</Alert>}
+      {message && <p role="status" className="text-xs leading-relaxed text-zinc-600">{message}</p>}
       {mode === "account" ? (
-        <Field
-          id="auth-username"
-          value={username}
-          onChange={setUsername}
-          disabled={loading}
-          autoComplete="username"
-          placeholder="Tên người dùng hoặc email"
-        />
+        <Field id="auth-username" value={username} onChange={setUsername} disabled={loading}
+          autoComplete="username" placeholder="Tên người dùng hoặc email" />
       ) : (
-        <Field
-          id="auth-domain"
-          value={domain}
-          onChange={(value) => {
-            setDomain(value);
-            setDomainChecked(false);
-            setPassword("");
-            setError(null);
-            setDomainWrongAttempts(0);
-            setDomainLockUntil(null);
-          }}
-          disabled={loading}
-          autoComplete="off"
-          placeholder="example.com"
-        />
+        <Field id="auth-domain" label="Tên miền" value={domain} onChange={value => { setDomain(value); resetDomainFlow(); }}
+          disabled={loading} autoComplete="off" placeholder="example.com" />
       )}
-      {(mode === "account" || domainChecked) && (
-        <Field
-          id="auth-password"
-          type="password"
-          value={password}
-          onChange={setPassword}
-          disabled={loading}
-          autoComplete="current-password"
-          placeholder="Mật khẩu"
-        />
+      {(mode === "account" || stage === "password") && (
+        <Field id="auth-password" type="password" value={password} onChange={setPassword} disabled={loading}
+          autoComplete="current-password" placeholder="Mật khẩu tài khoản" />
       )}
-      {shouldShowForgotDomain && (
-        <div className="text-right text-xs">
-          <Link
-            href="/forgot-password-domain"
-            className="text-orange-600 underline underline-offset-2 hover:text-orange-700"
-          >
-            Bạn quên mật khẩu tên miền?
-          </Link>
+      {mode === "domain" && stage === "otp" && (
+        <Field id="auth-domain-code" label="Mã đăng nhập (6 chữ số)" value={code} inputMode="numeric" maxLength={6}
+          onChange={value => setCode(value.replace(/\D/g, ""))} disabled={loading}
+          autoComplete="one-time-code" placeholder="000000" />
+      )}
+      <button type="submit" disabled={loading || (mode === "domain" && stage === "domain" && remaining > 0) || (mode === "domain" && stage === "otp" && !/^[0-9]{6}$/.test(code))}
+        className={`h-10 w-full rounded-md ${BTN_TEAL} text-sm font-semibold text-zinc-900 transition hover:opacity-90 disabled:opacity-60`}>
+        {loading ? "Đang xử lý…" : mode === "domain" && stage === "domain" ? (remaining > 0 ? `Gửi mã sau ${remaining}s` : "Gửi mã đăng nhập") : "Đăng nhập"}
+      </button>
+      {mode === "domain" && (
+        <div className="space-y-2 text-center text-xs">
+          {stage === "otp" && <button type="button" disabled={loading || remaining > 0} onClick={() => void submit(true)}
+            className="text-teal-700 underline underline-offset-2 disabled:opacity-50">
+            {remaining > 0 ? `Gửi lại mã sau ${remaining}s` : "Gửi lại mã đăng nhập"}
+          </button>}
+          <div><button type="button" disabled={loading} className="text-zinc-700 underline underline-offset-2"
+            onClick={() => { resetDomainFlow(); setStage(stage === "password" ? "domain" : "password"); }}>
+            {stage === "password" ? "Đăng nhập bằng mã email" : "Dùng mật khẩu tài khoản"}
+          </button></div>
+          {stage === "password" && <Link href="/forgot-password" className="inline-block text-orange-600 underline underline-offset-2">Quên mật khẩu tài khoản?</Link>}
+          <p className="leading-relaxed text-zinc-500">Chưa xác minh email? Đăng nhập bằng tài khoản, Google hoặc Zalo để xác minh email trong dashboard.</p>
         </div>
       )}
-      <button
-        type="submit"
-        disabled={loading || isDomainLocked}
-        className={`h-10 w-full rounded-md ${BTN_TEAL} text-sm font-semibold text-zinc-900 transition hover:opacity-90 disabled:opacity-60`}
-      >
-        {loading
-          ? "Đang xử lý…"
-          : isDomainLocked
-            ? `Thu lai sau ${lockRemainingSec}s`
-            : mode === "domain" && !domainChecked
-              ? "Tiếp tục"
-              : "Đăng nhập"}
-      </button>
     </form>
   );
 }

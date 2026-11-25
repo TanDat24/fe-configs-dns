@@ -1,4 +1,5 @@
 ﻿import { useMemo } from "react";
+import type { EmailVerificationStatusDto } from "@/lib/contracts/api";
 import { cn } from "@/lib/utils";
 import type { DomainConfig, DomainOverviewField } from "@/lib/domain-types";
 import { computeProtectionLevel } from "@/lib/domain-types";
@@ -11,6 +12,7 @@ type OverviewTongQuanPanelProps = {
   data: DomainConfig;
   onSaveOverview: (fields: Partial<Record<DomainOverviewField, string>>) => Promise<void>;
   saving: boolean;
+  emailVerificationStatus?: EmailVerificationStatusDto | null;
 };
 
 function circleClass(v: "active" | "muted" | "danger") {
@@ -22,7 +24,7 @@ function circleClass(v: "active" | "muted" | "danger") {
   );
 }
 
-export function OverviewTongQuanPanel({ data, onSaveOverview, saving }: OverviewTongQuanPanelProps) {
+export function OverviewTongQuanPanel({ data, onSaveOverview, saving, emailVerificationStatus }: OverviewTongQuanPanelProps) {
   const protectionLevel = computeProtectionLevel(
     data.security_services_json ?? [],
     data.two_factor_enabled === "1",
@@ -48,7 +50,7 @@ export function OverviewTongQuanPanel({ data, onSaveOverview, saving }: Overview
 
   return (
     <div className="space-y-4 py-5">
-      <DomainSummaryCards data={domainDataWithProtection} />
+      <DomainSummaryCards data={domainDataWithProtection} emailVerificationStatus={emailVerificationStatus} />
 
       <section className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
         <div className="flex items-center justify-between gap-3 bg-zinc-100 px-4 py-3 sm:px-5">

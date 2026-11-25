@@ -1,101 +1,67 @@
+import { randomBytes } from "node:crypto";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { applyAuthSessionCookies } from "@/lib/auth-cookie";
-import type {
-  LoginDomainRequestDto,
-  LoginDomainResponseDto,
-} from "@/lib/contracts/api";
-import {
-  createRequestId,
-  enforceRateLimit,
-  errorResponse,
-  logApiError,
-  sanitizeApiMessage,
-  verifySameOriginCsrf,
-} from "@/lib/server/request-security";
+import { applyAuthSessionCookies, clearAuthSessionCookies, wpAuthCookieOptions } from "@/lib/auth-cookie";
+import type { LoginDomainRequestDto, LoginDomainResponseDto } from "@/lib/contracts/api";
+import { createRequestId, enforceRateLimit, logApiError, verifySameOriginCsrf } from "@/lib/server/request-security";
 import { loginDomainSchema, parseBodyOrThrow } from "@/lib/server/validators";
-import { wpGraphqlLoginWithDomain } from "@/lib/server/wp-login-domain";
+import { wpAuthenticateDomain, wpStartDomainLoginOtp } from "@/lib/server/wp-domain-otp";
+
+const FLOW_COOKIE = "domain_login_flow";
+const FLOW_PATH = "/api/auth/login-domain";
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
-  const endpoint = process.env.WP_GRAPHQL_URL;
-  if (!endpoint) {
-    return errorResponse("Cau hinh he thong chua day du.", 500, requestId);
-  }
-
-  if (!verifySameOriginCsrf(request)) {
-    return errorResponse("Yeu cau khong hop le.", 403, requestId);
-  }
-
-  const limit = enforceRateLimit({
-    request,
-    namespace: "auth_login_domain",
-    max: 10,
-    windowMs: 60_000,
+  const respond = (body: object, status = 200) => NextResponse.json({ ...body, requestId }, {
+    status, headers: { "Cache-Control": "private, no-store" },
   });
+  const endpoint = process.env.WP_GRAPHQL_URL?.trim();
+  if (!endpoint) return respond({ message: "Cau hinh he thong chua day du." }, 500);
+  if (!verifySameOriginCsrf(request)) return respond({ message: "Yeu cau khong hop le." }, 403);
+  const limit = enforceRateLimit({ request, namespace: "auth_login_domain", max: 10, windowMs: 60_000 });
   if (!limit.ok) {
-    return NextResponse.json(
-      {
-        message: "Ban thao tac qua nhanh. Vui long thu lai sau.",
-        requestId,
-        retryAfterSec: limit.retryAfterSec,
-      },
-      { status: 429 },
-    );
+    const response = respond({ message: "Ban thao tac qua nhanh. Vui long thu lai sau.", retryAfterSec: limit.retryAfterSec }, 429);
+    response.headers.set("Retry-After", String(limit.retryAfterSec));
+    return response;
   }
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return errorResponse("Du lieu khong hop le.", 400, requestId);
-  }
-
   let payload: LoginDomainRequestDto;
-  try {
-    payload = parseBodyOrThrow(loginDomainSchema, body);
-  } catch (err) {
-    return errorResponse(
-      err instanceof Error ? err.message : "Du lieu khong hop le.",
-      400,
-      requestId,
-    );
-  }
+  try { payload = parseBodyOrThrow(loginDomainSchema, await request.json()); }
+  catch { return respond({ message: "Du lieu dang nhap khong hop le." }, 400); }
 
-  if (!payload.password) {
-    const checkResponse: LoginDomainResponseDto = {
-      domainExists: true,
-      domain: payload.domain,
-      message: "Vui long nhap mat khau.",
+  const cookieStore = await cookies();
+  const existingFlow = cookieStore.get(FLOW_COOKIE)?.value;
+  if (payload.action === "start") {
+    const flow = existingFlow && /^[a-f0-9]{64}$/.test(existingFlow) ? existingFlow : randomBytes(32).toString("hex");
+    const result = await wpStartDomainLoginOtp(endpoint, payload.domain, flow);
+    if (!result.ok) {
+      logApiError(requestId, "/api/auth/login-domain", "domain_otp_start_failed", { status: result.status });
+      return respond({ message: result.message }, result.status);
+    }
+    const body: LoginDomainResponseDto = {
+      ok: true, step: "otp", challengeId: result.data.challengeId,
+      retryAfterSec: result.data.retryAfterSec, expiresInSec: result.data.expiresInSec,
+      message: "Neu ten mien lien ket voi tai khoan co email da xac minh, ma dang nhap se duoc gui den email do.",
     };
-    return NextResponse.json(checkResponse);
+    const response = respond(body);
+    response.cookies.set(FLOW_COOKIE, flow, { ...wpAuthCookieOptions(300, request), path: FLOW_PATH });
+    return response;
   }
-
-  const result = await wpGraphqlLoginWithDomain(
-    endpoint,
-    payload.domain,
-    payload.password,
-  );
+  if (payload.action === "verify" && (!existingFlow || !/^[a-f0-9]{64}$/.test(existingFlow))) {
+    return respond({ message: "Phien nhap ma da het han. Vui long gui lai ma." }, 401);
+  }
+  const result = await wpAuthenticateDomain(endpoint, payload.action === "verify"
+    ? { ...payload, flow: existingFlow! } : payload);
   if (!result.ok) {
-    logApiError(requestId, "/api/auth/login-domain", result.message, {
-      status: result.status,
-    });
-    return errorResponse(
-      sanitizeApiMessage(result.status, result.message || "Dang nhap that bai."),
-      result.status,
-      requestId,
-    );
+    logApiError(requestId, "/api/auth/login-domain", "domain_login_failed", { status: result.status });
+    return respond({ message: result.message }, result.status);
   }
-
-  const responseBody: LoginDomainResponseDto = {
-    ok: true,
-    username: result.username,
-    domain: result.domain,
+  const body: LoginDomainResponseDto = {
+    ok: true, step: "authenticated", username: result.data.username, domain: result.data.domain,
   };
-  const res = NextResponse.json(responseBody);
-  applyAuthSessionCookies(
-    res,
-    { authToken: result.authToken, refreshToken: result.refreshToken },
-    request,
-  );
-  return res;
+  const response = respond(body);
+  // Replace both tokens so a missing new refresh token cannot retain another account's cookie.
+  clearAuthSessionCookies(response, request);
+  applyAuthSessionCookies(response, result.data, request);
+  response.cookies.set(FLOW_COOKIE, "", { ...wpAuthCookieOptions(0, request), path: FLOW_PATH });
+  return response;
 }

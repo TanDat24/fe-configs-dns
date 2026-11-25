@@ -1,5 +1,7 @@
 ﻿"use client";
 
+import { EmailVerificationPanel } from "@/components/features/auth/email-verification-panel";
+import type { EmailVerificationStatusDto } from "@/lib/contracts/api";
 import { DnsTabPanel } from "./dns-tab-panel";
 import { DOMAIN_TAB_IDS, DomainSubnav, type DomainTabId } from "./domain-subnav";
 import { DomainSearchSelect } from "./domain-search-select";
@@ -185,12 +187,15 @@ export function DomainOverviewView({ initialTab = "overview" }: DomainOverviewVi
   const [addInput, setAddInput] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
+  const [emailVerificationStatus, setEmailVerificationStatus] = useState<EmailVerificationStatusDto | null>();
+
   const hasNoDomains = !loading && domains.length === 0;
 
   if (hasNoDomains) {
     return (
       <div className="flex min-h-0 flex-1 flex-col font-sans">
         <OfflineHint />
+        {tab === "overview" ? <EmailVerificationPanel onStatusChange={setEmailVerificationStatus} /> : null}
         <EmptyDomainsState
           value={linkInput}
           onChange={setLinkInput}
@@ -286,9 +291,12 @@ export function DomainOverviewView({ initialTab = "overview" }: DomainOverviewVi
               data={domainData}
               onSaveOverview={saveOverview}
               saving={savingOverview}
+              emailVerificationStatus={emailVerificationStatus}
             />
           </div>
         ) : null}
+
+        {tab === "overview" ? <EmailVerificationPanel onStatusChange={setEmailVerificationStatus} /> : null}
 
         {tab === "dns" && domainData ? (
           <DnsTabPanel

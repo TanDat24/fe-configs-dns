@@ -1,4 +1,5 @@
-﻿import { cn } from "@/lib/utils";
+﻿import type { EmailVerificationStatusDto } from "@/lib/contracts/api";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { ProtectionGauge } from "./protection-gauge";
 import type { DomainConfig } from "@/lib/domain-types";
@@ -26,6 +27,7 @@ function CheckIcon({ className }: { className?: string }) {
 
 type DomainSummaryCardsProps = {
   data: DomainConfig;
+  emailVerificationStatus?: EmailVerificationStatusDto | null;
 };
 
 function safeProtectionLevel(input: string | number | null | undefined): number {
@@ -42,7 +44,7 @@ function levelColor(level: number): string {
   return "text-green-600";
 }
 
-export function DomainSummaryCards({ data }: DomainSummaryCardsProps) {
+export function DomainSummaryCards({ data, emailVerificationStatus }: DomainSummaryCardsProps) {
   const protectionLevel = safeProtectionLevel(data.protection_level);
 
   return (
@@ -90,16 +92,36 @@ export function DomainSummaryCards({ data }: DomainSummaryCardsProps) {
       </section>
 
       <section className="flex flex-col rounded-lg border border-zinc-200 bg-white p-5">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-base font-semibold text-zinc-900">Hồ sơ</h2>
-          <Link
-            href="/profile/cccd"
-            className="inline-flex h-8 items-center rounded-md border border-zinc-200 px-3 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
-          >
-            Upload CCCD
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="#email-verification"
+              className="inline-flex h-8 items-center rounded-md border border-zinc-200 px-3 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+            >
+              Xác minh email
+            </Link>
+            <Link
+              href="/profile/cccd"
+              className="inline-flex h-8 items-center rounded-md border border-zinc-200 px-3 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50"
+            >
+              Upload CCCD
+            </Link>
+          </div>
         </div>
         <ul className="mt-4 space-y-3 text-sm">
+          <li className="flex items-center justify-between gap-2">
+            <span className="text-zinc-700">Email tài khoản</span>
+            {emailVerificationStatus === undefined ? (
+              <span className="text-xs text-zinc-500">Đang tải…</span>
+            ) : emailVerificationStatus === null ? (
+              <span className="text-xs text-zinc-500">Chưa tải được</span>
+            ) : emailVerificationStatus.verified ? (
+              <span className="text-xs text-emerald-600">Đã xác minh</span>
+            ) : (
+              <span className="text-xs text-amber-600">Chưa xác minh</span>
+            )}
+          </li>
           <li className="flex items-center justify-between gap-2">
             <span className="text-zinc-700">CCCD chủ sở hữu</span>
             {data.profile_cccd_verified === "1" ? <CheckIcon className="h-5 w-5 text-emerald-500" /> : <span className="text-amber-600 text-xs">Chưa xác minh</span>}

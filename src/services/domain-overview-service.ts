@@ -1,3 +1,4 @@
+import type { SaveDomainTabResponseDto } from "@/lib/contracts/api";
 import { changePassword } from "@/lib/api/auth";
 import {
   addDomainToCurrentUser,
@@ -42,8 +43,8 @@ export async function saveDomainTabField(input: {
   domainId: number;
   field: DomainJsonField;
   payload: unknown;
-}): Promise<void> {
-  await saveDomainJsonTab(input);
+}): Promise<SaveDomainTabResponseDto> {
+  return saveDomainJsonTab(input);
 }
 
 export async function saveDomainOverview(input: {

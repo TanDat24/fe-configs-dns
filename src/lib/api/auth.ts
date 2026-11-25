@@ -14,6 +14,11 @@ import type {
   UploadCccdResponseDto,
   RegisterRequestDto,
   RegisterResponseDto,
+  SendEmailVerificationRequestDto,
+  SendEmailVerificationResponseDto,
+  VerifyEmailRequestDto,
+  VerifyEmailResponseDto,
+  EmailVerificationStatusDto,
 } from "@/lib/contracts/api";
 
 export type LoginInput = LoginRequestDto;
@@ -42,17 +47,11 @@ export type LoginByDomainResult = LoginDomainResponseDto;
 export async function loginByDomain(
   input: LoginByDomainInput,
 ): Promise<LoginByDomainResult> {
-  const data = await apiJson<LoginDomainResponseDto>(
-    "/api/auth/login-domain",
-    {
-      method: "POST",
-      json: {
-        domain: normalizeAuthDomain(input.domain),
-        ...(input.password ? { password: input.password } : {}),
-      },
-    },
-  );
-  return data;
+  return apiJson<LoginDomainResponseDto>("/api/auth/login-domain", {
+    method: "POST",
+    json: { ...input, domain: normalizeAuthDomain(input.domain) },
+    retry: 0,
+  });
 }
 
 export type RegisterInput = RegisterRequestDto;
@@ -119,6 +118,35 @@ export async function changePassword(input: ChangePasswordInput): Promise<Change
   return apiJson<ChangePasswordResponseDto>("/api/auth/change-password", {
     method: "POST",
     json: input,
+  });
+}
+
+export function sendEmailVerificationCode(
+  input: SendEmailVerificationRequestDto,
+): Promise<SendEmailVerificationResponseDto> {
+  return apiJson<SendEmailVerificationResponseDto>("/api/auth/email-verification/send", {
+    method: "POST",
+    json: { email: input.email.trim() },
+    retry: 0,
+  });
+}
+
+export function getEmailVerificationStatus(signal?: AbortSignal): Promise<EmailVerificationStatusDto> {
+  return apiJson<EmailVerificationStatusDto>("/api/auth/email-verification", {
+    method: "GET",
+    cache: "no-store",
+    signal,
+    retry: 0,
+  });
+}
+
+export function verifyEmailVerificationCode(
+  input: VerifyEmailRequestDto,
+): Promise<VerifyEmailResponseDto> {
+  return apiJson<VerifyEmailResponseDto>("/api/auth/email-verification/verify", {
+    method: "POST",
+    json: { code: input.code.trim() },
+    retry: 0,
   });
 }
 

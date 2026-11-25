@@ -36,18 +36,18 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Vui long nhap mat khau."),
 });
 
-export const loginDomainSchema = z.object({
-  domain: z
-    .string()
-    .trim()
-    .min(3, "Vui long nhap ten mien.")
-    .regex(
-      /^(?:https?:\/\/)?(?:www\.)?[a-z0-9][a-z0-9.\-]*\.[a-z]{2,}(?:\/.*)?$/i,
-      "Ten mien khong hop le.",
-    )
-    .transform(normalizeAuthDomain),
-  password: z.string().trim().min(1, "Vui long nhap mat khau.").optional(),
-});
+const loginDomainNameSchema = z.string().trim().max(2048).transform(normalizeAuthDomain).pipe(
+  z.string().max(253).regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/, "Ten mien khong hop le."),
+);
+export const loginDomainSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("start"), domain: loginDomainNameSchema }),
+  z.object({
+    action: z.literal("verify"), domain: loginDomainNameSchema,
+    challengeId: z.string().regex(/^[a-f0-9]{64}$/),
+    code: z.string().trim().regex(/^[0-9]{6}$/, "Ma dang nhap phai gom 6 chu so."),
+  }),
+  z.object({ action: z.literal("password"), domain: loginDomainNameSchema, password: z.string().min(1).max(4096) }),
+]);
 
 export const forgotPasswordSchema = z.object({
   email: z.string().trim().min(1, "Vui long nhap email hoac ten nguoi dung."),
@@ -81,6 +81,14 @@ export const changePasswordSchema = z.object({
   oldPassword: z.string().min(1, "Vui long nhap mat khau cu."),
   newPassword: z.string().min(1, "Vui long nhap mat khau moi."),
   confirmPassword: z.string().min(1, "Vui long nhap xac nhan mat khau."),
+});
+
+export const sendEmailVerificationSchema = z.object({
+  email: z.string().trim().email("Email khong hop le.").toLowerCase(),
+});
+
+export const verifyEmailSchema = z.object({
+  code: z.string().trim().regex(/^[0-9]{6}$/, "Ma xac thuc phai gom 6 chu so."),
 });
 
 export const saveDomainTabSchema = z.object({

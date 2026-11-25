@@ -3,6 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui";
+import { ApiError } from "@/lib/api/client";
+import { RecordHistoryPanel } from "./record-history-panel";
 import type {
   ChildDnsRow,
   DnsRecord,
@@ -39,7 +41,7 @@ const SAMPLE_CSV_RECORDS: DnsRecord[] = [
 
 const inputCellClass = "w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm text-zinc-900";
 
-type SaveFn = (field: DomainJsonField, payload: unknown) => Promise<void>;
+type SaveFn = (field: DomainJsonField, payload: unknown) => Promise<void | { historyWarning?: string }>;
 
 type DnsTabPanelProps = {
   data: DomainConfig | null;
@@ -147,6 +149,24 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
   const [deleteRecord, setDeleteRecord] = useState<{ index: number; row: DnsRecord } | null>(null);
   const [deleteRecordLoading, setDeleteRecordLoading] = useState(false);
   const csvInputRef = useRef<HTMLInputElement | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyVersion, setHistoryVersion] = useState(0);
+  const [historyWarning, setHistoryWarning] = useState<string | null>(null);
+
+  async function saveWithHistory(field: DomainJsonField, payload: unknown) {
+    if (field === "dns_records_json") setHistoryWarning(null);
+    try {
+      const result = await onSaveTab(field, payload);
+      if (result?.historyWarning) setHistoryWarning(result.historyWarning);
+    } catch (err) {
+      if (err instanceof ApiError && err.body && typeof err.body === "object" && "historyWarning" in err.body && typeof err.body.historyWarning === "string") {
+        setHistoryWarning(err.body.historyWarning);
+      }
+      throw err;
+    } finally {
+      if (field === "dns_records_json") setHistoryVersion(v => v + 1);
+    }
+  }
 
   const filteredRecords = useMemo(() => {
     if (!search.trim()) return records;
@@ -177,7 +197,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
     setDeleteAllLoading(true);
     try {
       setRecords(cleared);
-      await onSaveTab("dns_records_json", cleared);
+      await saveWithHistory("dns_records_json", cleared);
       showNotice("ok", "Đã xoá tất cả bản ghi và cập nhật dữ liệu.");
       setDeleteAllOpen(false);
     } catch (err) {
@@ -195,7 +215,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
     setDeleteRecordLoading(true);
     setRecords(normalized);
     try {
-      await onSaveTab("dns_records_json", normalized);
+      await saveWithHistory("dns_records_json", normalized);
       showNotice("ok", "Đã xoá bản ghi DNS.");
       setDeleteRecord(null);
     } catch (err) {
@@ -235,7 +255,12 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
 
         {activeSidebar === 0 ? (
           <div className="space-y-4 py-5 pr-0 lg:pr-2">
-            <h2 className={`text-lg font-semibold ${TEAL_TITLE}`}>Cấu hình bản ghi tên miền</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className={`text-lg font-semibold ${TEAL_TITLE}`}>Cấu hình bản ghi tên miền</h2>
+              <button type="button" aria-expanded={historyOpen} onClick={() => setHistoryOpen(v => !v)} className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm">{historyOpen ? "Ẩn lịch sử" : "Lịch sử thay đổi"}</button>
+            </div>
+            {historyWarning ? <p role="alert" className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{historyWarning}</p> : null}
+            {historyOpen && data ? <RecordHistoryPanel key={data.slug} slug={data.slug} refreshVersion={historyVersion} /> : null}
 
             <div className="flex flex-wrap items-center gap-2">
               <select
@@ -305,7 +330,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                   onClick={async () => {
                     const errors = validateDnsRecords(records);
                     if (errors.length) { showNotice("error", errors[0]); return; }
-                    try { await onSaveTab("dns_records_json", records); showNotice("ok", "Đã lưu cấu hình bản ghi DNS."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được bản ghi DNS."); }
+                    try { await saveWithHistory("dns_records_json", records); showNotice("ok", "Đã lưu cấu hình bản ghi DNS."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được bản ghi DNS."); }
                   }}
                   className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                 >
@@ -399,7 +424,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                                 return;
                               }
                               try {
-                                await onSaveTab("dns_records_json", records);
+                                await saveWithHistory("dns_records_json", records);
                                 showNotice("ok", "Đã cập nhật bản ghi DNS.");
                               } catch (err) {
                                 showNotice("error", err instanceof Error ? err.message : "Không cập nhật được bản ghi DNS.");
@@ -431,7 +456,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
               <button type="button" disabled={savingField === "dns_records_json"} onClick={async () => {
                 const errors = validateDnsRecords(records);
                 if (errors.length) { showNotice("error", errors[0]); return; }
-                try { await onSaveTab("dns_records_json", records); showNotice("ok", "Đã lưu cấu hình bản ghi DNS."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được bản ghi DNS."); }
+                try { await saveWithHistory("dns_records_json", records); showNotice("ok", "Đã lưu cấu hình bản ghi DNS."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được bản ghi DNS."); }
               }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer">{savingField === "dns_records_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
             </div>
           </div>
@@ -458,7 +483,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                   showNotice("error", "Name server không được để trống.");
                   return;
                 }
-                try { await onSaveTab("name_servers_json", cleaned); showNotice("ok", "Đã lưu danh sách name server."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được name server."); }
+                try { await saveWithHistory("name_servers_json", cleaned); showNotice("ok", "Đã lưu danh sách name server."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được name server."); }
               }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer">{savingField === "name_servers_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
             </div>
           </div>
@@ -487,7 +512,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                   if (!ipv4) errors.push(`DNS con phụ ${i + 1}: Địa chỉ IPv4 không được để trống`);
                 });
                 if (errors.length) { showNotice("error", errors[0]); return; }
-                try { await onSaveTab("child_dns_json", children); showNotice("ok", "Đã lưu cấu hình DNS con phụ."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được DNS con phụ."); }
+                try { await saveWithHistory("child_dns_json", children); showNotice("ok", "Đã lưu cấu hình DNS con phụ."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được DNS con phụ."); }
               }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer">{savingField === "child_dns_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
             </div>
           </div>
@@ -515,7 +540,7 @@ export function DnsTabPanel({ data, templates, onSaveTab, savingField }: DnsTabP
                 });
                 if (errors.length) { showNotice("error", errors[0]); return; }
                 const filtered = normalized.filter((f) => f.source || f.target);
-                try { await onSaveTab("email_forwards_json", filtered); showNotice("ok", "Đã lưu cấu hình email chuyển tiếp."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được email chuyển tiếp."); }
+                try { await saveWithHistory("email_forwards_json", filtered); showNotice("ok", "Đã lưu cấu hình email chuyển tiếp."); } catch (err) { showNotice("error", err instanceof Error ? err.message : "Không lưu được email chuyển tiếp."); }
               }} className="rounded-md bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer">{savingField === "email_forwards_json" ? "Đang lưu..." : "Lưu cấu hình"}</button>
             </div>
           </div>

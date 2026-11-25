@@ -16,18 +16,15 @@ export type LoginResponseDto = {
   ok: boolean;
 };
 
-export type LoginDomainRequestDto = {
-  domain: string;
-  password?: string;
-};
+export type LoginDomainRequestDto = { domain: string } & (
+  | { action: "start" }
+  | { action: "verify"; challengeId: string; code: string }
+  | { action: "password"; password: string }
+);
 
-export type LoginDomainResponseDto = {
-  ok?: boolean;
-  domainExists?: boolean;
-  username?: string;
-  domain?: string;
-  message?: string;
-};
+export type LoginDomainResponseDto =
+  | { ok: true; step: "otp"; challengeId: string; retryAfterSec: number; expiresInSec: number; message: string }
+  | { ok: true; step: "authenticated"; username: string; domain: string };
 
 export type ForgotPasswordRequestDto = {
   email: string;
@@ -59,6 +56,33 @@ export type ChangePasswordResponseDto = {
   message: string;
 };
 
+export type SendEmailVerificationRequestDto = {
+  email: string;
+};
+
+export type SendEmailVerificationResponseDto = {
+  ok: true;
+  message: string;
+};
+
+export type VerifyEmailRequestDto = {
+  code: string;
+};
+
+export type VerifyEmailResponseDto = {
+  ok: true;
+  message: string;
+  email: string;
+};
+
+export type EmailVerificationStatusDto = {
+  email: string;
+  verified: boolean;
+  canVerify: boolean;
+  pending: boolean;
+  retryAfterSec: number;
+};
+
 export type UploadCccdResponseDto = {
   message: string;
   frontImagePath: string;
@@ -85,6 +109,7 @@ export type SaveDomainTabRequestDto = {
 
 export type SaveDomainTabResponseDto = {
   message: string;
+  historyWarning?: string;
 };
 
 export type CustomerProvinceDto = {
