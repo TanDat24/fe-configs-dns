@@ -11,6 +11,10 @@ export default function SecurityPage() {
         chính sách bảo mật tên miền và cảnh báo.
       </p>
 
+      <Link href="/dashboard#email-verification" className="mt-4 inline-block text-sm text-zinc-900 underline underline-offset-2">
+        Xác minh email tài khoản tại dashboard
+      </Link>
+
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <section className="rounded-lg border border-zinc-200 bg-white p-4">
           <h2 className="font-medium">Bảo mật tài khoản</h2>

@@ -37,7 +37,7 @@ type DomainsListResponse = GraphqlBase & { data?: { dnsDomainsList?: DomainOptio
 type DomainBySlugResponse = GraphqlBase & { data?: { dnsDomainBySlug?: DomainRaw | null } };
 type TemplatesResponse = GraphqlBase & { data?: { dnsTemplatesList?: DnsTemplateRaw[] | null } };
 type SecurityPackagesResponse = GraphqlBase & { data?: { securityPackagesList?: SecurityPackageRaw[] | null } };
-type SaveResponse = GraphqlBase & { data?: { saveDnsDomainJsonTab?: { ok?: boolean | null; code?: string | null; message?: string | null } | null } };
+type SaveResponse = GraphqlBase & { data?: { saveDnsDomainJsonTab?: { ok?: boolean | null; code?: string | null; message?: string | null; historyWarning?: string | null } | null } };
 type LinkDomainResponse = GraphqlBase & { data?: { linkDomainToCurrentUser?: { ok?: boolean | null; code?: string | null; message?: string | null; domainId?: number | null; domain?: string | null; slug?: string | null } | null } };
 type AddDomainResponse = GraphqlBase & { data?: { addDomainToCurrentUser?: { ok?: boolean | null; code?: string | null; message?: string | null; domainId?: number | null; domain?: string | null; slug?: string | null } | null } };
 
@@ -53,7 +53,7 @@ const DNS_TEMPLATES_QUERY = `query DnsTemplates { dnsTemplatesList { id title re
 const SECURITY_PACKAGES_QUERY = `query SecurityPackages { securityPackagesList { id title description } }`;
 const SAVE_JSON_TAB_MUTATION = `
   mutation SaveDnsDomainJsonTab($domainId: Int!, $field: String!, $payloadJson: String!) {
-    saveDnsDomainJsonTab(input: { domainId: $domainId field: $field payloadJson: $payloadJson }) { ok code message }
+    saveDnsDomainJsonTab(input: { domainId: $domainId field: $field payloadJson: $payloadJson }) { ok code message historyWarning }
   }
 `;
 const LINK_DOMAIN_MUTATION = `
@@ -130,13 +130,13 @@ export async function wpGetSecurityPackages(endpoint: string, authToken: string)
   }
 }
 
-export async function wpSaveDomainJsonTab(endpoint: string, authToken: string, input: { domainId: number; field: DomainJsonField | string; payloadJson: string; }): Promise<{ ok: true; message: string } | { ok: false; status: number; message: string }> {
+export async function wpSaveDomainJsonTab(endpoint: string, authToken: string, input: { domainId: number; field: DomainJsonField | string; payloadJson: string; }): Promise<{ ok: true; message: string; historyWarning?: string } | { ok: false; status: number; message: string; historyWarning?: string }> {
   try {
     const json = await wpGraphql<SaveResponse>(endpoint, authToken, SAVE_JSON_TAB_MUTATION, input);
     if (json.errors?.length) return { ok: false, status: 400, message: json.errors.map((e) => e.message).join(" ") };
     const result = json.data?.saveDnsDomainJsonTab;
-    if (!result?.ok) return { ok: false, status: 400, message: result?.message ?? "Luu that bai." };
-    return { ok: true, message: result.message ?? "Da luu." };
+    if (!result?.ok) return { ok: false, status: 400, message: result?.message ?? "Luu that bai.", historyWarning: result?.historyWarning ?? undefined };
+    return { ok: true, message: result.message ?? "Da luu.", historyWarning: result.historyWarning ?? undefined };
   } catch {
     return { ok: false, status: 502, message: "Loi goi WordPress GraphQL." };
   }

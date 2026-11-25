@@ -119,7 +119,7 @@ export function useDomainOverview() {
     setSavingField(field);
     setDomainData((prev) => (prev ? { ...prev, [field]: payload } : prev));
     try {
-      await saveDomainTabField({ domainId: domainData.id, field, payload });
+      return await saveDomainTabField({ domainId: domainData.id, field, payload });
     } catch (err) {
       setDomainData(previous);
       throw err;

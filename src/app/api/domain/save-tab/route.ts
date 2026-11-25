@@ -102,9 +102,9 @@ export async function POST(request: Request) {
   if (!result.ok) {
     logApiError(requestId, "/api/domain/save-tab", result.message, { status: result.status, field });
     const message = result.status === 400 ? result.message : sanitizeApiMessage(result.status, "Khong the luu du lieu.");
-    return errorResponse(message, result.status, requestId);
+    return NextResponse.json({ message, requestId, ...(result.historyWarning ? { historyWarning: result.historyWarning } : {}) }, { status: result.status });
   }
 
-  const responseBody: SaveDomainTabResponseDto = { message: result.message };
+  const responseBody: SaveDomainTabResponseDto = { message: result.message, ...(result.historyWarning ? { historyWarning: result.historyWarning } : {}) };
   return NextResponse.json(responseBody);
 }
